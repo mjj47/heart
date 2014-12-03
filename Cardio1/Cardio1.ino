@@ -29,13 +29,22 @@ uint16_t lineDelta;
 uint16_t xPos = 0;
 volatile uint16_t queueSize = 0;
 uint16_t blankSpace = 0;
+<<<<<<< HEAD
 volatile boolean on = false;
+=======
+volatile boolean on234 = false;
+>>>>>>> eebc9bcf1697663d7ce1ab487e5872697ed6217c
 int prev = HIGH;
 uint32_t count = 0;
 
 
 volatile boolean hasData;
 volatile uint32_t adcData;
+
+
+const uint8_t RECORD_TIME = 30;
+uint32_t sdOutput[HERTZ * RECORD_TIME];
+volatile uint32_t sdIndex = 0;
 
 
 
@@ -132,12 +141,24 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 }
 
 
+<<<<<<< HEAD
+=======
+void writeToSD() { 
+  
+}
+>>>>>>> eebc9bcf1697663d7ce1ab487e5872697ed6217c
 
 int i2 = 0;
+
+uint32_t startTime;
+volatile boolean stopButton;
+
 void loop() {
   uint32_t time = millis();
   int sensorVal = digitalRead(1);
+
   if (prev != sensorVal && sensorVal == LOW) {
+<<<<<<< HEAD
     on = !on;
     if(on) {
       count = time;
@@ -153,16 +174,53 @@ void loop() {
    
    
   if (hasData && on) {
+=======
+     if (!on234) {
+       startTime = millis();
+       sdIndex = 0;
+       stopButton = false;
+     } else {
+       stopButton = true;
+     }
+     on234 = !on234;
+   }
+   prev = sensorVal;
+   
+   if (stopButton || (on234 && (startTime + 30000 < millis())) || sdIndex == HERTZ * RECORD_TIME) {
+     stopButton  = false;
+     on234 = false;
+     writeToSD(); 
+     sdIndex = 0;
+   } 
+   
+  if (hasData) {
+      
+>>>>>>> eebc9bcf1697663d7ce1ab487e5872697ed6217c
       hasData = false;    
-      uint32_t yVal = tft.height() * adcData / 1023;
-      //uint32_t yVal = tft.height() * (ADC0_RA / 1023) /  (((float) tft.height() / grid_delta) / 3.3);
-      if (queueSize == QUEUE_LENGTH) {
-        uint32_t oldVal = removeQueue();
-        uint32_t oldVal2 = peekQueue();
-        uint16_t xStart = xPos + lineDelta;
-        if (xStart > tft.width()) {
-          xStart = 0;
+      if (on234) {
+        uint32_t yVal = tft.height() * adcData / 1023;
+        //uint32_t yVal = tft.height() * (ADC0_RA / 1023) /  (((float) tft.height() / grid_delta) / 3.3);
+        if (queueSize == QUEUE_LENGTH) {
+          uint32_t oldVal = removeQueue();
+          uint32_t oldVal2 = peekQueue();
+          uint16_t xStart = xPos + lineDelta;
+          if (xStart > tft.width()) {
+            xStart = 0;
+          }
+          tft.drawLine(xStart, oldVal, xStart + lineDelta,
+                        oldVal2, ILI9341_WHITE);
+          redrawVertLines(xStart, oldVal, xStart + lineDelta, oldVal2);
+          redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
+          
+        } 
+        uint32_t temp = peekEndQueue();
+        tft.drawLine(xPos, temp, xPos + lineDelta, yVal, ILI9341_BLACK);
+        addQueue(yVal);
+        xPos += lineDelta;
+        if (xPos > tft.width()) {
+          xPos = 0;
         }
+<<<<<<< HEAD
         tft.drawLine(xStart, oldVal, xStart + lineDelta,
                       oldVal2, ILI9341_WHITE);
         tft.drawLine(xStart, oldVal + 1, xStart + lineDelta,
@@ -184,7 +242,15 @@ void loop() {
       xPos += lineDelta;
       if (xPos > tft.width()) {
         xPos = 0;
+=======
+        
+        sdOutput[sdIndex] = adcData;
+        sdIndex++;
+        
+        
+>>>>>>> eebc9bcf1697663d7ce1ab487e5872697ed6217c
       }
+      
    
   }
 
