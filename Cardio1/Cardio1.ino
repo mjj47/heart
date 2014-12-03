@@ -29,7 +29,7 @@ uint16_t lineDelta;
 uint16_t xPos = 0;
 volatile uint16_t queueSize = 0;
 uint16_t blankSpace = 0;
-volatile boolean on234 = true;
+volatile boolean on = false;
 int prev = HIGH;
 
 volatile boolean hasData;
@@ -126,15 +126,28 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 }
 
 
+uint32_t count = 0;
+
 int i2 = 0;
 void loop() {
+  uint32_t time = millis();
   int sensorVal = digitalRead(1);
   if (prev != sensorVal && sensorVal == LOW) {
-     //on234 = !on234;
+    on = !on;
+    if(on) {
+      count = time;
+    }
    }
    prev = sensorVal;
    
-  if (hasData) {
+   
+   if(time - count > 10000) {
+     on = false;
+   }
+   
+   
+   
+  if (hasData && on) {
       hasData = false;    
       uint32_t yVal = tft.height() * adcData / 1023;
       //uint32_t yVal = tft.height() * (ADC0_RA / 1023) /  (((float) tft.height() / grid_delta) / 3.3);
@@ -149,10 +162,12 @@ void loop() {
                       oldVal2, ILI9341_WHITE);
         redrawVertLines(xStart, oldVal, xStart + lineDelta, oldVal2);
         redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
-        
       } 
       uint32_t temp = peekEndQueue();
       tft.drawLine(xPos, temp, xPos + lineDelta, yVal, ILI9341_BLACK);
+
+
+
       addQueue(yVal);
       xPos += lineDelta;
       if (xPos > tft.width()) {
