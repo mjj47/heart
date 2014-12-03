@@ -31,6 +31,8 @@ volatile uint16_t queueSize = 0;
 uint16_t blankSpace = 0;
 volatile boolean on = false;
 int prev = HIGH;
+uint32_t count = 0;
+
 
 volatile boolean hasData;
 volatile uint32_t adcData;
@@ -100,10 +102,12 @@ void initVertLines() {
 }
 
 void redrawHorLines(int x1, int y1, int x2, int y2) {
-  int startingLine = y1 / grid_delta;
-  int finishingLine = y2 / grid_delta + 1;
-  for(int i = min(startingLine, finishingLine) ; i <= max(startingLine, finishingLine); i++) {
-    if(i * grid_delta <= max(y2, y1) && i * grid_delta >= min(y1, y2)) {
+  int minY = min(y1, y2) - 1;
+  int maxY = max(y1, y2) + 1;
+  int startingLine = minY / grid_delta;
+  int finishingLine = maxY / grid_delta + 1;
+  for(int i = startingLine ; i <= finishingLine; i++) {
+    if(i * grid_delta <= maxY && i * grid_delta >= minY) {
       tft.drawLine(x1, i * grid_delta, x2, i * grid_delta,  grid_color);
     }
   }
@@ -116,17 +120,18 @@ void initHorLines() {
 }
 
 void redrawVertLines(int x1, int y1, int x2, int y2) {
+  int minY = min(y1, y2);
+  int maxY = max(y1, y2);
   int startingLine = x1 / grid_delta;
   int finishingLine = x2 / grid_delta + 1;
   for(int i = startingLine; i <= finishingLine; i++) {
     if(i * grid_delta <= x2 && i * grid_delta >= x1) {
-      tft.drawLine(i * grid_delta, y1, i * grid_delta, y2, grid_color);
+      tft.drawLine(i * grid_delta, minY - 1, i * grid_delta, maxY + 1, grid_color);
     }
   }
 }
 
 
-uint32_t count = 0;
 
 int i2 = 0;
 void loop() {
@@ -141,7 +146,7 @@ void loop() {
    prev = sensorVal;
    
    
-   if(time - count > 10000) {
+   if(time - count > 100000) {
      on = false;
    }
    
@@ -160,11 +165,18 @@ void loop() {
         }
         tft.drawLine(xStart, oldVal, xStart + lineDelta,
                       oldVal2, ILI9341_WHITE);
+        tft.drawLine(xStart, oldVal + 1, xStart + lineDelta,
+                      oldVal2 + 1, ILI9341_WHITE);                
+        tft.drawLine(xStart, oldVal - 1, xStart + lineDelta,
+                      oldVal2 - 1, ILI9341_WHITE);
         redrawVertLines(xStart, oldVal, xStart + lineDelta, oldVal2);
         redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
       } 
       uint32_t temp = peekEndQueue();
       tft.drawLine(xPos, temp, xPos + lineDelta, yVal, ILI9341_BLACK);
+      tft.drawLine(xPos, temp - 1, xPos + lineDelta, yVal - 1, ILI9341_BLACK);
+      tft.drawLine(xPos, temp + 1, xPos + lineDelta, yVal + 1, ILI9341_BLACK);
+
 
 
 
