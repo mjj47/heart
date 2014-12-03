@@ -32,6 +32,9 @@ uint16_t blankSpace = 0;
 volatile boolean on234 = true;
 int prev = HIGH;
 
+volatile boolean hasData;
+volatile uint32_t adcData;
+
 
 
 
@@ -125,11 +128,39 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 
 int i2 = 0;
 void loop() {
-//  int sensorVal = digitalRead(1);
-//  if (prev != sensorVal && sensorVal == LOW) {
-//     //on234 = !on234;
-//   }
-//   prev = sensorVal;
+  int sensorVal = digitalRead(1);
+  if (prev != sensorVal && sensorVal == LOW) {
+     //on234 = !on234;
+   }
+   prev = sensorVal;
+   
+  if (hasData) {
+      hasData = false;    
+      uint32_t yVal = tft.height() * adcData / 1023;
+      //uint32_t yVal = tft.height() * (ADC0_RA / 1023) /  (((float) tft.height() / grid_delta) / 3.3);
+      if (queueSize == QUEUE_LENGTH) {
+        uint32_t oldVal = removeQueue();
+        uint32_t oldVal2 = peekQueue();
+        uint16_t xStart = xPos + lineDelta;
+        if (xStart > tft.width()) {
+          xStart = 0;
+        }
+        tft.drawLine(xStart, oldVal, xStart + lineDelta,
+                      oldVal2, ILI9341_WHITE);
+        redrawVertLines(xStart, oldVal, xStart + lineDelta, oldVal2);
+        redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
+        
+      } 
+      uint32_t temp = peekEndQueue();
+      tft.drawLine(xPos, temp, xPos + lineDelta, yVal, ILI9341_BLACK);
+      addQueue(yVal);
+      xPos += lineDelta;
+      if (xPos > tft.width()) {
+        xPos = 0;
+      }
+   
+  }
+
 
 
    
@@ -225,28 +256,9 @@ void pdbInit() {
 
 
 void adc0_isr() {
-      uint32_t yVal = tft.height() * ADC0_RA / 1023;
-      //uint32_t yVal = tft.height() * (ADC0_RA / 1023) /  (((float) tft.height() / grid_delta) / 3.3);
-      if (queueSize == QUEUE_LENGTH) {
-        uint32_t oldVal = removeQueue();
-        uint32_t oldVal2 = peekQueue();
-        uint16_t xStart = xPos + lineDelta;
-        if (xStart > tft.width()) {
-          xStart = 0;
-        }
-        tft.drawLine(xStart, oldVal, xStart + lineDelta,
-                      oldVal2, ILI9341_WHITE);
-        redrawVertLines(xStart, oldVal, xStart + lineDelta, oldVal2);
-        redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
-        
-      } 
-      uint32_t temp = peekEndQueue();
-      tft.drawLine(xPos, temp, xPos + lineDelta, yVal, ILI9341_BLACK);
-      addQueue(yVal);
-      xPos += lineDelta;
-      if (xPos > tft.width()) {
-        xPos = 0;
-      }
+    adcData = ADC0_RA;
+    hasData = true;
+      
 }
 
 void pdb_isr() {
