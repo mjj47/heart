@@ -110,7 +110,7 @@ void readFile(uint16_t index) {
 }
 
 void openFile(uint16_t index) {
-  setFileName(index);
+  setFileName(index - 1);
   if (!file.open(fileName, FILE_WRITE)) {
     //error("file.open");
     Serial.println("Could Not open file");
@@ -126,6 +126,8 @@ void setup() {
   tft.begin();
   tft.setRotation(1);
   pinMode(1, INPUT_PULLUP);
+  pinMode(0, INPUT_PULLUP);
+
   
   Serial.begin(9600);
   //while (!Serial);
@@ -133,7 +135,7 @@ void setup() {
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (QUEUE_LENGTH - 1);
   pinMode(HEART_INPUT, INPUT);
-  
+  Serial.println("woot");
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
     Serial.println("Yikes");
     sd.initErrorHalt();
@@ -285,9 +287,21 @@ int i2 = 0;
 uint32_t startTime;
 volatile boolean to_munu_state;
 
+volatile int prev2;
+void checkReadBack() {
+  int sensorVal = digitalRead(0);
+
+  if (prev2 != sensorVal && sensorVal == LOW) {
+    readFile(sampleNumber);
+  }
+  prev2 = sensorVal;
+
+}
+
 void loop() {
   uint32_t time = millis();
   int sensorVal = digitalRead(1);
+  checkReadBack();
   
   if (prev != sensorVal && sensorVal == LOW) {
     if(menu_state) {
@@ -301,6 +315,7 @@ void loop() {
  if(to_menu_state || reading_state && time - count > 300000 || sdIndex == HERTZ * RECORD_TIME) {
    writeToSD(); 
    sampleNumber++;
+   sampleNumber = sampleNumber % 100;
    initMenuState();
  } 
 
