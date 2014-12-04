@@ -135,10 +135,9 @@ void setup() {
   pinMode(HEART_INPUT, INPUT);
   
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
-    Serial.println("Yikes");
-    sd.initErrorHalt();
+    Serial.println("Can't write to SD card");
   } else {
-    Serial.println("YeeHaw");
+    Serial.println("SD card set up");
   }
   
   adcInit();
