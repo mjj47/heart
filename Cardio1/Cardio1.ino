@@ -1,9 +1,24 @@
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
+#include <SdFat.h>
+
+
+
 
 #define TFT_DC 9
 #define TFT_CS 10
+
+#define SD_CS 4
+#define FILE_BASE_NAME "DATA"
+const uint8_t chipSelect = SD_CS;
+SdFat sd;
+SdFile file;
+char fileName[13] = FILE_BASE_NAME "00.CSV";
+
+
+
+
 
 /* ADCpdbDMA
 PDB triggers the ADC which requests the DMA to move the data to a buffer
@@ -32,6 +47,8 @@ uint16_t blankSpace = 0;
 volatile boolean on = false;
 int prev = HIGH;
 uint32_t count = 0;
+
+uint16_t sampleNumber = 0;
 
 
 volatile boolean hasData;
@@ -72,6 +89,43 @@ void addQueue(uint32_t val) {
 }
 
 
+void setFileName(uint16_t index) {
+  int nums = 4;
+  
+  fileName[nums] = '0' + (index / 10);
+  fileName[nums] = '0' + (index % 10);
+}
+
+void readFile(uint16_t index) {
+  setFileName(index);
+  Serial.print("Avail: ");
+  Serial.println(file.available());
+  Serial.println("Trogdor");
+  int c;
+  
+  file.open(fileName);
+  
+  while ((c = file.read()) >= 0) {
+    Serial.print((char)c);
+  }
+  
+  Serial.println("DONE!!");
+  
+
+}
+
+void openFile(uint16_t index) {
+  setFileName(index);
+  if (!file.open(fileName, FILE_WRITE)) {
+    //error("file.open");
+    Serial.println("Could Not open file");
+  } else {
+    Serial.print("Opened File: ");
+    Serial.println(fileName);
+  }
+}
+  
+  
   
 void setup() {
   tft.begin();
@@ -90,6 +144,17 @@ void setup() {
   lineDelta = tft.width() / (QUEUE_LENGTH - 1);
   
 
+  if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
+    Serial.println("Yikes");
+    sd.initErrorHalt();
+  } else {
+    Serial.println("YeeHaw");
+  }
+  
+
+  
+  
+
   adcInit();
   pdbInit();
   
@@ -98,6 +163,8 @@ void setup() {
   
   NVIC_ENABLE_IRQ(IRQ_PDB);
 }
+
+
 
 uint16_t grid_color = ILI9341_GREEN;
 void initVertLines() {
@@ -139,6 +206,27 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 
 
 void writeToSD() { 
+  openFile(sampleNumber);
+  Serial.println(sdIndex);
+  file.print("RMMJ");
+  if (sampleNumber < 10) {
+    file.print("0");
+  }
+  file.print(sampleNumber);
+  file.print(",");
+  file.println(HERTZ);
+  int rows = (sdIndex - 1) / 8 + 1;
+  for (int row = 0; row < rows; row++) {
+    file.print(sdOutput[row * 8]);
+    for (int col = 1; col < 8 && row * 8 + col < sdIndex; col++) {
+      file.print(",");
+      file.print(sdOutput[row * 8 + col]);
+    }
+    file.println();
+  } 
+  file.println("\0");
+  file.flush();
+  file.close();
   
 }
 
@@ -169,6 +257,7 @@ void loop() {
      stopButton  = false;
      writeToSD(); 
      sdIndex = 0;
+     sampleNumber++;
    } 
    
   if (hasData && on) {
@@ -199,9 +288,10 @@ void loop() {
       xPos += lineDelta;
       if (xPos > tft.width()) {
         xPos = 0;        
-        sdOutput[sdIndex] = adcData;
-        sdIndex++;     
+           
       }
+      sdOutput[sdIndex] = adcData;
+      sdIndex++;  
   }   
 }
 
