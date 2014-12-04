@@ -88,7 +88,7 @@ void setFileName(uint16_t index) {
   int nums = 4;
   
   fileName[nums] = '0' + (index / 10);
-  fileName[nums] = '0' + (index % 10);
+  fileName[nums + 1] = '0' + (index % 10);
 }
 
 void readFile(uint16_t index) {
@@ -163,7 +163,7 @@ void initReadingDataState(uint32_t time) {
     int index = 0;
     int calBuf[200];
     int calBufSize = 0;
-    while(abs(maxV - minV) > 800) {
+    while(abs(maxV - minV) > 1500) {
       if(!hasData) {
         continue;
       }
