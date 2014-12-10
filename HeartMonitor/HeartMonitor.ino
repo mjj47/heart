@@ -122,33 +122,6 @@ void openFile(uint16_t index) {
   
   
   
-void setup() {
-  tft.begin();
-  tft.setRotation(1);
-  pinMode(1, INPUT_PULLUP);
-  pinMode(0, INPUT_PULLUP);
-
-  
-  Serial.begin(9600);
-  //while (!Serial);
-  
-  grid_delta = tft.width() / num_vert_lines;
-  lineDelta = tft.width() / (QUEUE_LENGTH - 1);
-  pinMode(HEART_INPUT, INPUT);
-  Serial.println("woot");
-  if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
-    Serial.println("Can't write to SD card");
-  } else {
-    Serial.println("SD card set up");
-  }
-  
-  adcInit();
-  pdbInit();
-  
-  NVIC_ENABLE_IRQ(IRQ_PDB);
-  initMenuState();
-  
-}
 
 
 void initReadingDataState(uint32_t time) {
@@ -219,28 +192,6 @@ void initMenuState() {
 }
 
 
-#define NZEROS 5
-#define NPOLES 5
-#define GAIN   1.020541103e+00
-
-static float xv[NZEROS+1], yv[NPOLES+1];
-
-static float filterloop(float input)
-  {
-      { xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; xv[4] = xv[5]; 
-        xv[5] = input / GAIN;
-        yv[0] = yv[1]; yv[1] = yv[2]; yv[2] = yv[3]; yv[3] = yv[4]; yv[4] = yv[5]; 
-        yv[5] =   (xv[5] - xv[0]) + 5 * (xv[1] - xv[4]) + 10 * (xv[3] - xv[2])
-                     + (  0.9601498046 * yv[0]) + ( -4.8397940441 * yv[1])
-                     + (  9.7584732020 * yv[2]) + ( -9.8381634113 * yv[3])
-                     + (  4.9593344485 * yv[4]);
-        return yv[5];
-      }
-  }
-
-
-
-
 void initVertLines() {
   for(int i = 0; i <= num_vert_lines; i++) {
     tft.drawLine(i * grid_delta, 0, i * grid_delta, tft.height(), GRAPH_GRID_LINES);
@@ -276,6 +227,7 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
     }
   }
 }
+
 
 
 
@@ -320,6 +272,57 @@ void checkReadBack() {
 
 }
 
+
+//#define NZEROS 4
+//#define NPOLES 4
+//#define GAIN   1.016554412e+00
+//
+//static float xv[NZEROS+1], yv[NPOLES+1];
+//
+//static float filterloop(float input)
+//  { 
+//      { xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; 
+//        xv[4] = input / GAIN;
+//        yv[0] = yv[1]; yv[1] = yv[2]; yv[2] = yv[3]; yv[3] = yv[4]; 
+//        yv[4] =   (xv[0] + xv[4]) - 4 * (xv[1] + xv[3]) + 6 * xv[2]
+//                     + ( -0.9676955438 * yv[0]) + (  3.9025587848 * yv[1])
+//                     + ( -5.9020258615 * yv[2]) + (  3.9671625959 * yv[3]);
+//        return yv[4];
+//      }
+//  }
+
+#define NZEROS 8
+#define NPOLES 8
+#define GAIN   2.350948325e+00
+
+static float xv[NZEROS+1], yv[NPOLES+1];
+
+static float filterloop(float input)
+  { for (;;)
+      { xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; xv[4] = xv[5]; xv[5] = xv[6]; xv[6] = xv[7]; xv[7] = xv[8]; 
+        xv[8] = input / GAIN;
+        yv[0] = yv[1]; yv[1] = yv[2]; yv[2] = yv[3]; yv[3] = yv[4]; yv[4] = yv[5]; yv[5] = yv[6]; yv[6] = yv[7]; yv[7] = yv[8]; 
+        yv[8] =   (xv[0] + xv[8]) - 4 * (xv[2] + xv[6]) + 6 * xv[4]
+                     + ( -0.1809565909 * yv[0]) + ( -0.2890487942 * yv[1])
+                     + (  0.7687190920 * yv[2]) + (  1.2560181076 * yv[3])
+                     + ( -1.3787754194 * yv[4]) + ( -1.9547581905 * yv[5])
+                     + (  1.1791986465 * yv[6]) + (  1.5996029778 * yv[7]);
+        return yv[8];
+      }
+  }
+
+
+uint8_t numValues = 2;
+volatile uint32_t runningAverage = 0;
+
+float transform(uint32_t input) {
+  
+//  return   (filterloop(((float) input) - 2048) + 2048);
+  runningAverage = (runningAverage * numValues - runningAverage + (filterloop(((float) input) - 2048) + 2048)) / numValues;
+  return runningAverage;
+//  
+}
+
 void loop() {
   uint32_t time = millis();
   int sensorVal = digitalRead(1);
@@ -345,12 +348,12 @@ void loop() {
    
   if (hasData && reading_state) {
       hasData = false;    
-      float temp47 = filterloop((float) adcData);
-      Serial.println((float) adcData);
+      float temp47 = transform(adcData);
+     
       Serial.println(temp47);
-            Serial.println();
-//      uint32_t yVal = tft.height() * temp47 / 4095;
-      uint32_t yVal = tft.height() *  adcData / 4095;
+      Serial.println();
+      uint32_t yVal = tft.height() * temp47 / 4095;
+//      uint32_t yVal = tft.height() *  adcData / 4095;
 
       if (queueSize == QUEUE_LENGTH) {
         uint32_t oldVal = removeQueue();
@@ -479,4 +482,39 @@ void adc0_isr() {
 void pdb_isr() {
   PDB0_SC &= ~PDB_SC_PDBIF;
 }
+
+
+void setup() {
+  tft.begin();
+  tft.setRotation(1);
+  pinMode(1, INPUT_PULLUP);
+  pinMode(0, INPUT_PULLUP);
+
+  
+  Serial.begin(9600);
+  //while (!Serial);
+  
+  grid_delta = tft.width() / num_vert_lines;
+  lineDelta = tft.width() / (QUEUE_LENGTH - 1);
+  pinMode(HEART_INPUT, INPUT);
+  Serial.println("woot");
+  if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
+    Serial.println("Can't write to SD card");
+  } else {
+    Serial.println("SD card set up");
+  }
+  
+  adcInit();
+  pdbInit();
+  
+//  xv[0] = 2048.0;
+//  xv[1] = 2048.0;
+//  yv[0] = 2048.0;
+//  yv[1] = 2048.0;
+  
+  NVIC_ENABLE_IRQ(IRQ_PDB);
+  initMenuState();
+  
+}
+
 
