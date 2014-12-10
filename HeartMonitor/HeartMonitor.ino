@@ -64,41 +64,54 @@ volatile boolean to_munu_state;
 volatile int prev2;
 
 //----------------------------------- Queue Methods ------------------------------------
-volatile uint16_t queueSize = 0;
-uint16_t startPoint = 0;
-uint16_t endPoint = 0;
+
+typedef struct Queue
+{
+  uint32_t * vals;
+  uint32_t startPoint;
+  uint32_t endPoint;
+  uint32_t length;
+  uint32_t queueSize;
+} Queue;
 
 
-uint32_t peekEndQueue() { 
-  int index = endPoint - 1;
-  index = (index >= 0) ? index : index + QUEUE_LENGTH;
-  return heartVals[index];
+uint32_t peekEndQueue(Queue * q) { 
+  int index = q->endPoint - 1;
+  index = (index >= 0) ? index : index + q->length;
+  return q->vals[index];
 }
 
 
-uint32_t peekQueue() {
-  return heartVals[startPoint];
+uint32_t peekQueue(Queue * q) {
+  return q->vals[q->startPoint];
 }
 
-uint32_t removeQueue() {
-    queueSize--;
-    uint32_t temp = heartVals[startPoint];
-    startPoint +=1;
-    startPoint = startPoint % QUEUE_LENGTH;
+uint32_t removeQueue(Queue * q) {
+    q->queueSize--;
+    uint32_t temp = q->vals[q->startPoint];
+    q->startPoint++;
+    q->startPoint = q->startPoint % q->length;
     return temp;
 }
  
-void addQueue(uint32_t val) {
-  queueSize++;
-  heartVals[endPoint] = val;
-  endPoint += 1;
-  endPoint = endPoint % QUEUE_LENGTH;
+void addQueue(Queue * q, uint32_t value) {
+  q->queueSize++;
+  q->vals[q->endPoint] = value;
+  q->endPoint++;
+  q->endPoint = q->endPoint % q->length;
 }
 
-void resetQueue() {
-  startPoint = 0;
-  endPoint = 0;
-  queueSize = 0;
+void resetQueue(Queue * q) {
+  q->startPoint = 0;
+  q->endPoint = 0;
+  q->queueSize = 0;
+}
+
+Queue * initQueue(uint32_t queueLength) {
+  Queue * ret = (Queue *) malloc(sizeof(Queue));
+  ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
+  ret->length = queueLength;
+  return ret;
 }
 
 //------------------------------ File Methods -----------------------------
