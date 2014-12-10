@@ -36,14 +36,16 @@ char fileName[13] = FILE_BASE_NAME "00.CSV";
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 volatile uint32_t PDB_CONFIG;
-const int QUEUE_LENGTH = 321;
+const int DISPLAY_QUEUE_LENGTH = 321;
+const int QRS_QUEUE_LENGTH = 200;
 const int HERTZ = 250;
 const float TIME_GRID_DELTA = .04;
 
-uint32_t num_vert_lines = (float) QUEUE_LENGTH / HERTZ / TIME_GRID_DELTA;
+uint32_t num_vert_lines = (float) DISPLAY_QUEUE_LENGTH / HERTZ / TIME_GRID_DELTA;
 uint32_t grid_delta; 
 const int HEART_INPUT = 14;
-uint32_t heartVals[QUEUE_LENGTH];
+Queue * display;
+Queue * qrs;
 uint16_t lineDelta;
 uint16_t xPos = 0;
 uint16_t blankSpace = 0;
@@ -474,8 +476,8 @@ void loop() {
 
 //do we have data and am in a reading state
 if (hasData && reading_state) {
-    hasData = false;    
     float dataPoint = transform(adcData);
+    hasData = false;    
     uint32_t yVal = tft.height() *  dataPoint / 4095;
     
     //if the queue is full remove a line
@@ -491,8 +493,15 @@ if (hasData && reading_state) {
     addQueue(yVal);
     sdOutput[sdIndex] = dataPoint;
     sdIndex++;  
+
+    //qrs detect
+    uint32_t slope = averageSlope(10);
+    for(int i = 0; i < )
+
   }   
 }
+
+
 
 void adc0_isr() {
     adcData = ADC0_RA;
