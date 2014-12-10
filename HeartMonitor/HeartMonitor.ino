@@ -218,6 +218,29 @@ void initMenuState() {
   
 }
 
+
+#define NZEROS 5
+#define NPOLES 5
+#define GAIN   1.020541103e+00
+
+static float xv[NZEROS+1], yv[NPOLES+1];
+
+static float filterloop(float input)
+  {
+      { xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; xv[4] = xv[5]; 
+        xv[5] = input / GAIN;
+        yv[0] = yv[1]; yv[1] = yv[2]; yv[2] = yv[3]; yv[3] = yv[4]; yv[4] = yv[5]; 
+        yv[5] =   (xv[5] - xv[0]) + 5 * (xv[1] - xv[4]) + 10 * (xv[3] - xv[2])
+                     + (  0.9601498046 * yv[0]) + ( -4.8397940441 * yv[1])
+                     + (  9.7584732020 * yv[2]) + ( -9.8381634113 * yv[3])
+                     + (  4.9593344485 * yv[4]);
+        return yv[5];
+      }
+  }
+
+
+
+
 void initVertLines() {
   for(int i = 0; i <= num_vert_lines; i++) {
     tft.drawLine(i * grid_delta, 0, i * grid_delta, tft.height(), GRAPH_GRID_LINES);
@@ -321,7 +344,13 @@ void loop() {
    
   if (hasData && reading_state) {
       hasData = false;    
-      uint32_t yVal = tft.height() * adcData / 4095;
+      float temp47 = filterloop((float) adcData);
+      Serial.println((float) adcData);
+      Serial.println(temp47);
+            Serial.println();
+//      uint32_t yVal = tft.height() * temp47 / 4095;
+      uint32_t yVal = tft.height() *  adcData / 4095;
+
       if (queueSize == QUEUE_LENGTH) {
         uint32_t oldVal = removeQueue();
         uint32_t oldVal2 = peekQueue();
