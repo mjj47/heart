@@ -430,7 +430,7 @@ float averageSlope(uint16_t numToLookBack) {
     if (tempEnd <= 0) {
       numToLookBack = i;
     } else {
-      ret += sdOutput[tempEnd] - sdOutput[tempEnd - 1];
+      ret += (sdOutput[tempEnd] - sdOutput[tempEnd - 1]) * (sdOutput[tempEnd] - sdOutput[tempEnd - 1]);
     }
     tempEnd--;
   }
