@@ -315,6 +315,7 @@ void loop() {
    writeToSD(); 
    sampleNumber++;
    sampleNumber = sampleNumber % 100;
+   sdIndex = 0;
    initMenuState();
  } 
 
