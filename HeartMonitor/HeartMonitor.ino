@@ -25,7 +25,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 
 #define NZEROS 8
 #define NPOLES 8
-#define GAIN   2.350948325e+00
+#define GAIN   4.549356222e+01
 
 //------------------------- Glabals -----------------------------------------
 
@@ -281,6 +281,7 @@ void initHorLines() {
   }
 }
 
+
 static const uint8_t channel2sc1a[] = {
 	5, 14, 8, 9, 13, 12, 6, 7, 15, 4,
 	0, 19, 3, 21, 26, 22
@@ -399,26 +400,42 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 
 static float xv[NZEROS+1], yv[NPOLES+1];
 
-static float filterloop(float input) {
-        xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; xv[4] = xv[5]; xv[5] = xv[6]; xv[6] = xv[7]; xv[7] = xv[8]; 
-        xv[8] = input / GAIN;
+static float filterloop(float input)
+  { for (;;)
+      { xv[0] = xv[1]; xv[1] = xv[2]; xv[2] = xv[3]; xv[3] = xv[4]; xv[4] = xv[5]; xv[5] = xv[6]; xv[6] = xv[7]; xv[7] = xv[8]; 
+        xv[8] =  input  / GAIN;
         yv[0] = yv[1]; yv[1] = yv[2]; yv[2] = yv[3]; yv[3] = yv[4]; yv[4] = yv[5]; yv[5] = yv[6]; yv[6] = yv[7]; yv[7] = yv[8]; 
         yv[8] =   (xv[0] + xv[8]) - 4 * (xv[2] + xv[6]) + 6 * xv[4]
-                     + ( -0.1809565909 * yv[0]) + ( -0.2890487942 * yv[1])
-                     + (  0.7687190920 * yv[2]) + (  1.2560181076 * yv[3])
-                     + ( -1.3787754194 * yv[4]) + ( -1.9547581905 * yv[5])
-                     + (  1.1791986465 * yv[6]) + (  1.5996029778 * yv[7]);
+                     + ( -0.0656274072 * yv[0]) + (  0.6803537539 * yv[1])
+                     + ( -3.1973474110 * yv[2]) + (  8.7164421149 * yv[3])
+                     + (-15.1907165280 * yv[4]) + ( 17.4196484110 * yv[5])
+                     + (-12.7689074570 * yv[6]) + (  5.4061545144 * yv[7]);
         return yv[8];
-}
-  
+      }
+  }
 
 
-#define NUM_VALUES = 2;
+uint8_t numValues = 2;
 volatile uint32_t runningAverage = 0;
 
 float transform(uint32_t input) {
-  runningAverage = (runningAverage * NUM_VALUES - runningAverage + (filterloop(((float) input) - 2048) + 2048)) / NUM_VALUES;
-  return runningAverage; 
+    runningAverage = (runningAverage * numValues - runningAverage + (filterloop(((float) input) - 2048) + 2048)) / numValues;
+  return runningAverage;  
+}
+
+float averageSlope(uint16_t numToLookBack) {
+  int32_t tempEnd = sdIndex - 1;
+  float ret = 0.0;
+  for (int i = 0; i < numToLookBack; i++) {
+    if (tempEnd <= 0) {
+      numToLookBack = i;
+    } else {
+      ret += sdOutput[tempEnd] - sdOutput[tempEnd - 1];
+    }
+    tempEnd--;
+  }
+  numToLookBack = (numToLookBack == 0) ? 1 : numToLookBack;
+  return ret / (numToLookBack);
 }
 
 //--------------------------------- Main ---------------------------------------------------------
