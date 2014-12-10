@@ -322,9 +322,13 @@ float averageSlope(uint16_t numToLookBack) {
   return ret / (numToLookBack);
 }
 
-
-  
-
+float integrate(float qrs[], int leng) {
+  float ret = 0.0;
+  for (int i = 0; i < leng; i++) {
+    ret += qrs[i];
+  }
+  return ret;
+}
 
 
 void loop() {
