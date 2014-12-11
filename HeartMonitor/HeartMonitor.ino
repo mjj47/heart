@@ -29,6 +29,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 
 //------------------------- Glabals -----------------------------------------
 
+const int DISPLAY_QUEUE_LENGTH = 321;
 
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
@@ -37,8 +38,6 @@ char fileName[13] = FILE_BASE_NAME "00.CSV";
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 
 volatile uint32_t PDB_CONFIG;
-const int DISPLAY_QUEUE_LENGTH = 321;
-const int QRS_QUEUE_LENGTH = 200;
 const int HERTZ = 250;
 const float TIME_GRID_DELTA = .04;
 
@@ -63,6 +62,11 @@ int i2 = 0;
 uint32_t startTime;
 volatile boolean to_munu_state;
 volatile int prev2;
+uint32_t beatDetected = 0;
+uint32_t oldXpos = 0;
+
+volatile boolean hasBPM;
+
 
 typedef struct queue_struct
 {
@@ -73,8 +77,12 @@ typedef struct queue_struct
   uint32_t queueSize;
 } Queue;
 
+const int QRS_QUEUE_LENGTH = 10;
+const int QRS_BPM_LENGTH = 4;
+
 Queue* graphDisplay;
 Queue* qrs;
+Queue* qrsTimes;
 
 //----------------------------------- Queue Methods ------------------------------------
 
@@ -207,6 +215,7 @@ void setup() {
 
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
+  qrsTimes = (Queue *) initQueue(QRS_BPM_LENGTH);
 
   
   Serial.begin(9600);
@@ -412,6 +421,18 @@ void redrawHorLines(int x1, int y1, int x2, int y2) {
   }
 }
 
+uint32_t getBPM() {
+ int bpmIndex = qrsTimes->startPoint;
+ uint32_t diff = 0.0;
+ for (int i = 0; i < qrsTimes->max_length - 1; i++) {
+    diff += qrsTimes->vals[(bpmIndex + i + 1) % qrsTimes->max_length] - qrsTimes->vals[(bpmIndex + i) % qrsTimes->max_length];
+ }
+ diff = diff / (qrsTimes->max_length - 1);
+ Serial.println(diff);
+ return diff;
+ 
+} 
+
 void redrawVertLines(int x1, int y1, int x2, int y2) {
   int minY = min(y1, y2);
   int maxY = max(y1, y2);
@@ -477,6 +498,7 @@ float integrate(float qrs[], int leng) {
 
 //--------------------------------- Main ---------------------------------------------------------
 
+
 void loop() {
   uint32_t time = millis();
   
@@ -523,11 +545,15 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    addQueue(qrs, slope);
-    for(int i = qrs->startPoint; i < qrs->max_length + qrs->startPoint; i++) {
-      Serial.print(qrs->vals[i % qrs->max_length]);
+    if (slope > 14000 && time - beatDetected > 100) {
+      hasBPM = true;
+      addQueue(qrsTimes, time);
+      beatDetected = time;
+      tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
+      tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
+      oldXpos = xPos;
     }
-    Serial.println();
+    addQueue(qrs, slope);
   }   
 }
 
