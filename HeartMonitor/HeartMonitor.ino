@@ -179,6 +179,10 @@ uint16_t maxFileIndex = 0;
 
 void readFileNames() {
   int i;
+  maxFileIndex = 0;
+  if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
+    Serial.println("Can't write to SD card");
+  }
   for(i = 0; file.openNext(sd.vwd(), O_READ); i++) {
     char* name = file.name();
     if (name[0] != 'D' || name[1] != 'A' || name[2] != 'T' || name[3] != 'A') {
@@ -353,10 +357,14 @@ void initFileChooseState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("File Choose State");
-  readFileNames();    
+  tft.setCursor(65, 10); tft.print("Choose File");
+  readFileNames();   
+  tft.setTextSize(2); 
+  tft.setTextColor(MENU_TEXT);
   char * name = (char *) getCurrentFile();
-  tft.setCursor(30,80); tft.print(name);
+  tft.setCursor(110,120); tft.print(name);
+  drawDownArrow();
+
 }
 
 //------------------ Init Recall State --------------------------
@@ -653,15 +661,20 @@ void loop() {
     if(selectEvent) {
       toRecallState = true;
     } else if (downEvent) {
-      tft.fillRect(0,80,tft.width(), 30, MENU_BACKGROUND);
+      tft.fillRect(0,40,tft.width(), tft.height() - 40, MENU_BACKGROUND);
       moveNextFile();
       char * name = getCurrentFile();
-      tft.setCursor(30,80); tft.print(name);
+      drawUpArrow();
+      if (fileNameIndex + 1 != maxFileIndex) {drawDownArrow();}
+      tft.setCursor(110,120); tft.print(name);
     } else if (upEvent) {
-      tft.fillRect(0,80,tft.width(), 30, MENU_BACKGROUND);
+      tft.fillRect(0,40,tft.width(), tft.height() - 40, MENU_BACKGROUND);
       movePrevFile();
       char * name = getCurrentFile();
-      tft.setCursor(30,80); tft.print(name);
+      drawDownArrow();
+      if (fileNameIndex != 0) {drawUpArrow();}
+      tft.setCursor(110,120); tft.print(name);
+
     }
   }
 
@@ -793,6 +806,19 @@ void addLine(uint32_t temp, uint32_t yVal) {
     xPos = 0;        
        
   }
+}
+
+void drawUpArrow() {
+  tft.drawLine(160, 100, 160, 65, MENU_TEXT);
+  tft.drawLine(160, 65, 150, 75, MENU_TEXT);
+  tft.drawLine(160, 65, 170, 75, MENU_TEXT);
+
+}
+
+void drawDownArrow() {
+  tft.drawLine(160, 150, 160, 185, MENU_TEXT);
+  tft.drawLine(160, 185, 150, 175, MENU_TEXT);
+  tft.drawLine(160, 185, 170, 175, MENU_TEXT);
 }
 
 void hasDataAction(uint32_t time) {
