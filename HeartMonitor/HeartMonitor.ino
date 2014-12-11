@@ -253,9 +253,9 @@ void initReadingDataState(uint32_t time) {
     int maxV = -1;
     int minV = 1024;
     int index = 0;
-    int calBuf[200];
+    int calBuf[300];
     int calBufSize = 0;
-    while(abs(maxV - minV) > 1500) {
+    while(abs(maxV - minV) > 1100) {
       if(!hasData) {
         continue;
       }
@@ -550,7 +550,7 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    if (slope > 10000 && time - beatDetected > 100) {
+    if (slope > 9000 && time - beatDetected > 100) {
       hasBPM = true;
       addQueue(qrs, time);
       beatDetected = time;
@@ -560,11 +560,11 @@ if (hasData && reading_state) {
       tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, GRAPH_LINE);       
     }
   }
-  if(hasBPM) {
+  if(hasBPM && readingState) {
     uint16_t bpm = getBPM();
     tft.setTextColor(BOTTOM_TEXT_COLOR);
     tft.setTextSize(2);
-    tft.setCursor(0, tft.height() - 25); tft.print(bpm);
+    tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); t.print(bpm);
   }
 }
 
