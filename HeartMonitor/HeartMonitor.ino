@@ -29,6 +29,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 
 //------------------------- Glabals -----------------------------------------
 
+
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
 SdFile file;
@@ -44,8 +45,6 @@ const float TIME_GRID_DELTA = .04;
 uint32_t num_vert_lines = (float) DISPLAY_QUEUE_LENGTH / HERTZ / TIME_GRID_DELTA;
 uint32_t grid_delta; 
 const int HEART_INPUT = 14;
-Queue * display;
-Queue * qrs;
 uint16_t lineDelta;
 uint16_t xPos = 0;
 uint16_t blankSpace = 0;
@@ -65,54 +64,59 @@ uint32_t startTime;
 volatile boolean to_munu_state;
 volatile int prev2;
 
-//----------------------------------- Queue Methods ------------------------------------
-
-typedef struct Queue
+typedef struct queue_struct
 {
-  uint32_t * vals;
+  uint32_t* vals;
   uint32_t startPoint;
   uint32_t endPoint;
-  uint32_t length;
+  uint32_t max_length;
   uint32_t queueSize;
 } Queue;
 
+Queue* graphDisplay;
+Queue* qrs;
 
-uint32_t peekEndQueue(Queue * q) { 
+//----------------------------------- Queue Methods ------------------------------------
+
+
+
+
+uint32_t peekEndQueue(Queue* q) { 
   int index = q->endPoint - 1;
-  index = (index >= 0) ? index : index + q->length;
+  index = (index >= 0) ? index : index + q->max_length;
   return q->vals[index];
 }
 
 
-uint32_t peekQueue(Queue * q) {
+uint32_t peekQueue(Queue* q) {
   return q->vals[q->startPoint];
 }
 
-uint32_t removeQueue(Queue * q) {
+uint32_t removeQueue(Queue* q) {
     q->queueSize--;
     uint32_t temp = q->vals[q->startPoint];
     q->startPoint++;
-    q->startPoint = q->startPoint % q->length;
+    q->startPoint = q->startPoint % q->max_length;
     return temp;
 }
  
-void addQueue(Queue * q, uint32_t value) {
+void addQueue(Queue* q, uint32_t value) {
   q->queueSize++;
   q->vals[q->endPoint] = value;
   q->endPoint++;
-  q->endPoint = q->endPoint % q->length;
+  q->endPoint = q->endPoint % q->max_length;
 }
 
-void resetQueue(Queue * q) {
+void resetQueue(Queue* q) {
   q->startPoint = 0;
   q->endPoint = 0;
   q->queueSize = 0;
 }
 
-Queue * initQueue(uint32_t queueLength) {
-  Queue * ret = (Queue *) malloc(sizeof(Queue));
+Queue* initQueue(uint32_t queueLength) {
+  Queue* ret = (Queue*) malloc(sizeof(Queue));
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
-  ret->length = queueLength;
+  ret->max_length = queueLength;
   return ret;
 }
 
@@ -196,6 +200,9 @@ void setup() {
   pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
 
+  graphDisplay = initQueue(DISPLAY_QUEUE_LENGTH);
+  qrs = initQueue(QRS_QUEUE_LENGTH);
+
   
   Serial.begin(9600);
   //while (!Serial);
@@ -254,7 +261,9 @@ void initReadingDataState(uint32_t time) {
     initHorLines();
     
     //reset the queue
-    resetQueue();
+    resetQueue(graphDisplay);
+    resetQueue(qrs);
+
     xPos = 0;
     
     //reset the sd and time
@@ -262,7 +271,7 @@ void initReadingDataState(uint32_t time) {
     sdIndex = 0;
     
     //add the first filler data point
-    addQueue(0);
+    addQueue(graphDisplay, 0);
     
     //start reading
     menu_state = false;
@@ -494,23 +503,26 @@ if (hasData && reading_state) {
     uint32_t yVal = tft.height() *  dataPoint / 4095;
     
     //if the queue is full remove a line
-    if (queueSize == QUEUE_LENGTH) {
+    if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
       removeLine();
     } 
     
     //grab the oldVal and add a line to the graph
-    uint32_t oldYVal = peekEndQueue();
+    uint32_t oldYVal = peekEndQueue(graphDisplay);
     addLine(oldYVal, yVal);
     
     //add the YVal to the queue and data to the sd output
-    addQueue(yVal);
+    addQueue(graphDisplay, yVal);
     sdOutput[sdIndex] = dataPoint;
     sdIndex++;  
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    for(int i = 0; i < )
-
+    addQueue(qrs);
+    for(int i = qrs->startPoint; i < qrs->max_length + qrs->startPoint; i++) {
+      Serial.print(qrs->vals[i % qrs->max_length]);
+    }
+    Serial.println();
   }   
 }
 
@@ -528,8 +540,8 @@ void pdb_isr() {
 //-------------------------------------- Helpers -------------------------------------------
 
 void removeLine() {
-  uint32_t oldVal = removeQueue();
-  uint32_t oldVal2 = peekQueue();
+  uint32_t oldVal = removeQueue(graphDisplay);
+  uint32_t oldVal2 = peekQueue(graphDisplay);
   uint16_t xStart = xPos + lineDelta;
   if (xStart > tft.width()) {
     xStart = 0;
