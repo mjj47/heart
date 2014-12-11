@@ -79,6 +79,9 @@ bool toRecallState = false;
 bool clearRed = false;
 bool hasBPM = false;
 bool hasData = false;
+bool hasInflection = false;
+
+uint32_t inflectionCountdown = 0;
 
 
 //TODO: temperal and frame rate vars
@@ -421,7 +424,6 @@ void initReadDataState(uint32_t time) {
     uint32_t bpm = 0;
     uint32_t calTime = millis();
     while(bpm < 45 || bpm > 80 || (millis() - calTime < 5000)) {
-      Serial.println("here1");
       if(!hasData) {
         continue;
       }
@@ -442,9 +444,6 @@ void initReadDataState(uint32_t time) {
       }
       
     }
-
-    Serial.println("here2");
-
     
     //init the graph
     tft.fillScreen(GRAPH_BACKGROUND);
@@ -903,12 +902,35 @@ void hasDataAction(uint32_t time) {
     hasBPM = true;
     addQueue(qrs, time);
     qrsDetected = time;
+    hasInflection = true;
 
     //draw the debugging line
     tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
     tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
     oldXpos = xPos;    
   }
+
+  //QRS Time
+  if(hasInflection && time - qrsDetected > 80) {
+    int peakIndex = findPeak();
+    float qrsTime = (findMinIndexFromPeak(peakIndex, true) + findMinIndexFromPeak(peakIndex, false)) * (1.0 / HERTZ);
+    Serial.println(qrsTime);
+    hasInflection = false;
+  }
+}
+
+//go back in time to find the R wave time
+int findPeak() {
+  maxIndex = 0;
+  maxValue = 0;
+  for(int i = 0; i < 40; i++) {
+    int val = sdOutput[sdIndex - 1 - i];
+    if(sdOutput[sdIndex - 1 - i] > maxValue) {
+      maxIndex = i;
+      maxValue = val;
+    }
+  }
+  return maxIndex;
 }
 
 
