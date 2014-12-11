@@ -342,7 +342,7 @@ void initMenuState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(65, 10); tft.print("EKG Monitor");
+  tft.setCursor(65, 10); tft.print("EKG Monitor"); 
   tft.setTextSize(2);
   tft.setTextColor(MENU_TEXT);
 
@@ -472,7 +472,7 @@ void initReportState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("Report State");
+  tft.setCursor(45, 10); tft.print("EKG Summary");
   tft.setTextSize(2);
   tft.setTextColor(MENU_TEXT);
   tft.setCursor(10, 100);
@@ -482,8 +482,8 @@ void initReportState() {
 
   int delta = 30;
   int startYPos = 130;
-  tft.setCursor(10, startYPos); tft.print("Bradycardia: ");
-  tft.setCursor(10, startYPos + delta); tft.print("Tachycardia: ");
+  tft.setCursor(10, startYPos); tft.print("Bradycardia: "); tft.print(bpmAv < 60 ? "Symptomatic" : "Asymptomatic");
+  tft.setCursor(10, startYPos + delta); tft.print("Tachycardia: "); tft.print(bpmAv > 100 ? "Symptomatic" : "Asymptomatic");
   tft.setCursor(10, startYPos + 2 * delta); tft.print("        PVC: ");
   tft.setCursor(10, startYPos + 3 * delta); tft.print("        PAC: ");
   bpmSum = 0;
