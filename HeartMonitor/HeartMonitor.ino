@@ -549,7 +549,7 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    if (slope > 14000 && time - beatDetected > 100) {
+    if (slope > 10000 && time - beatDetected > 200) {
       hasBPM = true;
       addQueue(qrs, time);
       beatDetected = time;
