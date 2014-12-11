@@ -713,7 +713,7 @@ void loop() {
   //-------------------------- File Choose State Actions -------------------------------
   if(fileChooseState) {
     if(selectEvent) {
-      toRecallState = true;
+      toReportState = true;
     } else if (downEvent) {
       tft.fillRect(0,40,tft.width(), tft.height() - 40, MENU_BACKGROUND);
       moveNextFile();
@@ -791,6 +791,7 @@ void loop() {
     sdIndex = 0;
     reportState = true;
     readState = false;
+    recallSate = false;
     toReportState = false;
     initReportState();
   }
