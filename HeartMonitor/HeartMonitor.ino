@@ -81,39 +81,44 @@ Queue* qrs;
 
 
 
-uint32_t peekEndQueue(Queue* q) { 
+uint32_t peekEndQueue(void * t) {
+  Queue * q = (Queue *) t; 
   int index = q->endPoint - 1;
   index = (index >= 0) ? index : index + q->max_length;
   return q->vals[index];
 }
 
 
-uint32_t peekQueue(Queue* q) {
+uint32_t peekQueue(void* t) {
+  Queue * q = (Queue *) t;
   return q->vals[q->startPoint];
 }
 
-uint32_t removeQueue(Queue* q) {
-    q->queueSize--;
-    uint32_t temp = q->vals[q->startPoint];
-    q->startPoint++;
-    q->startPoint = q->startPoint % q->max_length;
-    return temp;
+uint32_t removeQueue(void* t) {
+  Queue * q = (Queue *) t;
+  q->queueSize--;
+  uint32_t temp = q->vals[q->startPoint];
+  q->startPoint++;
+  q->startPoint = q->startPoint % q->max_length;
+  return temp;
 }
  
-void addQueue(Queue* q, uint32_t value) {
+void addQueue(void* t, uint32_t value) {
+  Queue * q = (Queue *) t;
   q->queueSize++;
   q->vals[q->endPoint] = value;
   q->endPoint++;
   q->endPoint = q->endPoint % q->max_length;
 }
 
-void resetQueue(Queue* q) {
+void resetQueue(void* t) {
+  Queue * q = (Queue *) t;
   q->startPoint = 0;
   q->endPoint = 0;
   q->queueSize = 0;
 }
 
-Queue* initQueue(uint32_t queueLength) {
+void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
   ret->max_length = queueLength;
@@ -200,15 +205,15 @@ void setup() {
   pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
 
-  graphDisplay = initQueue(DISPLAY_QUEUE_LENGTH);
-  qrs = initQueue(QRS_QUEUE_LENGTH);
+  graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
+  qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
 
   
   Serial.begin(9600);
   //while (!Serial);
   
   grid_delta = tft.width() / num_vert_lines;
-  lineDelta = tft.width() / (QUEUE_LENGTH - 1);
+  lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
   pinMode(HEART_INPUT, INPUT);
   Serial.println("woot");
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
@@ -518,7 +523,7 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    addQueue(qrs);
+    addQueue(qrs, slope);
     for(int i = qrs->startPoint; i < qrs->max_length + qrs->startPoint; i++) {
       Serial.print(qrs->vals[i % qrs->max_length]);
     }
