@@ -34,7 +34,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
-SdFile file;
+File file;
 char fileName[13] = FILE_BASE_NAME "00.CSV";
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
 uint32_t PDB_CONFIG;
@@ -118,8 +118,8 @@ typedef struct queue_struct
   uint32_t queueSize;
 } Queue;
 
-const int QRS_QUEUE_LENGTH = 10;
-const int QRS_BPM_LENGTH = 10;
+const int QRS_QUEUE_LENGTH = 4;
+const int QRS_BPM_LENGTH = 4;
 
 Queue* graphDisplay;
 Queue* qrs;
@@ -173,10 +173,17 @@ void* initQueue(uint32_t queueLength) {
 //-------------------------------------- File Methods ---------------------------------
 //-------------------------------------------------------------------------------------
 
+void getAllFiles() {
+  while (file.openNext(sd.vwd(), O_READ)) {
+    Serial.println(file.name());
+    file.close();
+  }
+}
+
 void setFileName(uint16_t index) {
   int nums = 4;
   
-  fileName[nums] = '0' + (index / 10);
+  fileName[nums] = '0' + ((index / 10) % 10);
   fileName[nums + 1] = '0' + (index % 10);
 }
 
@@ -188,28 +195,44 @@ void readFile(uint16_t index) {
   int c;
   
   file.open(fileName);
-  
+  uint32_t val = 0;
+  uint32_t indexInFile = 0;
+  sdIndex = 0;
   while ((c = file.read()) >= 0) {
-    Serial.print((char)c);
+    if (c >= '0' && c <= '9') {
+      val = val * 10 + (uint32_t) (c - '0');
+    } else if ((indexInFile > 12 && c == ',') ||(indexInFile > 12 && c == '\n' )) {
+      sdOutput[sdIndex] = val;
+      val = 0;
+      sdIndex++;
+    }
+    Serial.println(val);
+    indexInFile++;;  
   }
+  sdOutput[sdIndex] = val;
+  sdIndex++;
   
   Serial.println("DONE!!");
+  file.close();
   
 
 }
 
 void openFile(uint16_t index) {
-  setFileName(index - 1);
+  setFileName(index);
+  Serial.println("Attempting to Open File... "); 
   if (!file.open(fileName, FILE_WRITE)) {
     //error("file.open");
-    Serial.println("Could Not open file");
+    Serial.print("Could Not open File: ");
   } else {
     Serial.print("Opened File: ");
-    Serial.println(fileName);
   }
+  Serial.println(fileName);
 }
 
 void writeToSD() { 
+  setFileName(sampleNumber);
+  sd.remove(fileName);
   openFile(sampleNumber);
   Serial.println(sdIndex);
   file.print("RMMJ");
