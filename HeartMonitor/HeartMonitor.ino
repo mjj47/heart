@@ -83,8 +83,8 @@ typedef struct queue_struct
   uint32_t queueSize;
 } Queue;
 
-const int QRS_QUEUE_LENGTH = 10;
-const int QRS_BPM_LENGTH = 10;
+const int QRS_QUEUE_LENGTH = 4;
+const int QRS_BPM_LENGTH = 4;
 
 Queue* graphDisplay;
 Queue* qrs;
