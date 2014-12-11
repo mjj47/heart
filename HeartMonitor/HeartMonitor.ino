@@ -99,6 +99,9 @@ uint16_t sampleNumber = 0;
 //menu state vars
 int menuChoose = 0;
 
+//recall state vars
+int sdRecallIndex = 0;
+
 
 //-------------------------------------------------------------------------------------
 //----------------------------------- Queue Methods ------------------------------------
@@ -299,10 +302,9 @@ void initFileChooseState() {
 
 //------------------ Init Recall State --------------------------
 void initRecallState() {
-  tft.fillScreen(MENU_BACKGROUND);
-  tft.setTextColor(MENU_HEADER);
-  tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("Recall State");
+  sdRecallIndex = 0;
+  readFile();
+  drawGraphSection();
 }
 
 //------------------- Init Read State ------------------------
@@ -623,6 +625,14 @@ void loop() {
     if(selectEvent) {
       toMenuState = true;
     }
+    if(upEvent || downEvent)
+      if(upEvent) {
+        sdRecallIndex = min(HERTZ * RECORD_TIME - DISPLAY_QUEUE_LENGTH, sdRecallIndex +  DISPLAY_QUEUE_LENGTH / 3);
+      }
+      if(downEvent) {
+        sdRecallIndex = max(0, sdRecallIndex - DISPLAY_QUEUE_LENGTH / 3);
+      }
+      drawGraphSection();
   }
 
 
@@ -802,6 +812,23 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
     if(i * grid_delta <= x2 && i * grid_delta >= x1) {
       tft.drawLine(i * grid_delta, minY - 1, i * grid_delta, maxY + 1, GRAPH_GRID_LINES);
     }
+  }
+}
+
+//Used when recalling data from sd card
+void drawGraphSection() {
+  tft.fillScreen(GRAPH_BACKGROUND);
+  initVertLines();
+  initHorLines();
+  uint32_t tempXpos = 0;
+  uint32_t oldyVal = tft.height() - tft.height() *  sdOutput[index] / 4095
+  for(int i = sdRecallIndex + 1; i < sdRecallIndex + DISPLAY_QUEUE_LENGTH; i++) {
+    uint32_t yVal = tft.height() - tft.height() *  sdOutput[i] / 4095
+    tft.drawLine(tempXpos, oldyVal, tempXpos + lineDelta, sdOutput, GRAPH_LINE);
+    tft.drawLine(tempXpos, oldyVal - 1, tempXpos + lineDelta, yVal - 1, GRAPH_LINE);
+    tft.drawLine(tempXpos, oldyVal + 1, tempXpos + lineDelta, yVal + 1, GRAPH_LINE);
+    oldyVal = yVal;
+    tempXpos += lineDelta;
   }
 }
 
