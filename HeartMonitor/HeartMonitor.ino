@@ -1,3 +1,6 @@
+//Ryan McMahon
+//Michael Johnson
+
 #include "SPI.h"
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"
@@ -117,20 +120,12 @@ uint16_t numQRSs = 0;
 
 
 
-//-------------------------------------------------------------------------------------
-//----------------------------------- Queue Methods ------------------------------------
-//-------------------------------------------------------------------------------------
-
-// Because arduino requires developers to add .h files as a external library in order to pass
-// pointers to structs to methods, we got around the problem by passing and returning void *'s 
-// then casting where appropriate 
+//-----------------------------------------------------------------------------------------------------------------------------------
+//----------------------------------- Queue Methods ----------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------
 
 
-// A queue has an array of uint32 values
-// pointer to the beginning
-// pointer to the end
-// max possible size
-// and a current size
+
 typedef struct queue_struct
 {
   uint32_t* vals;
@@ -147,9 +142,6 @@ Queue* graphDisplay;
 Queue* qrs;
 Queue* qrsTimes;
 
-
-
-// return the last element of the queue, does not modify
 uint32_t peekEndQueue(void * t) {
   Queue * q = (Queue *) t; 
   int index = q->endPoint - 1;
@@ -157,12 +149,12 @@ uint32_t peekEndQueue(void * t) {
   return q->vals[index];
 }
 
-// return the first element of the queue, does not modify
+
 uint32_t peekQueue(void* t) {
   Queue * q = (Queue *) t;
   return q->vals[q->startPoint];
 }
-// returns and removes the first element of the queue
+
 uint32_t removeQueue(void* t) {
   Queue * q = (Queue *) t;
   q->queueSize--;
@@ -172,9 +164,6 @@ uint32_t removeQueue(void* t) {
   return temp;
 }
  
-// adds an element to the end of the queue, will 
-// overwrite circularly if the queueSize is greater than
-// the queue max_length
 void addQueue(void* t, uint32_t value) {
   Queue * q = (Queue *) t;
   q->queueSize++;
@@ -183,7 +172,6 @@ void addQueue(void* t, uint32_t value) {
   q->endPoint = q->endPoint % q->max_length;
 }
 
-// sets everything in the queue to 0
 void resetQueue(void* t) {
   Queue * q = (Queue *) t;
   q->startPoint = 0;
@@ -191,8 +179,6 @@ void resetQueue(void* t) {
   q->queueSize = 0;
 }
 
-// initializes and returns a new queue.  The 
-// queue can hold up to queueLength items
 void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
@@ -203,22 +189,14 @@ void* initQueue(uint32_t queueLength) {
   return ret;
 }
 
-//-------------------------------------------------------------------------------------
-//-------------------------------------- File Methods ---------------------------------
-//-------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------- File Methods -------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------
 
-
-// ~~~ File Iterator readback Section ~~~~
-
-// which index we are currently looking at in fileSelectState
 int16_t fileNameIndex = 0;
-// All the potential file names
 char* fileNames[100];
-// how many of those files we have on SD card
 uint16_t maxFileIndex = 0;
 
-
-// read from the SD card all the file names, store them in fileNames
 void readFileNames() {
   int i;
   maxFileIndex = 0;
@@ -228,7 +206,6 @@ void readFileNames() {
   }
   for(i = 0; file.openNext(sd.vwd(), O_READ); i++) {
     char* name = file.name();
-    // Only write DATA files
     if (name[0] != 'D' || name[1] != 'A' || name[2] != 'T' || name[3] != 'A') {
       file.close();
       continue;
@@ -241,29 +218,24 @@ void readFileNames() {
   }
 }
 
-// Iterator through file index, move forward
+
 void moveNextFile() {
   if (fileNameIndex + 1 != maxFileIndex){
     fileNameIndex++;
   }
 }
 
-// Iterator backwards through file index
 void movePrevFile() {
   if (fileNameIndex != 0) {
     fileNameIndex--;
   }
 }
 
-// Return our current values of the file name
 char * getCurrentFile() {
   return fileNames[fileNameIndex];
 }
 
 
-// ~~~ File Processing Section ~~~~
-
-// sets the fileName pointed to to a certion index
 void setFileName(uint16_t index) {
   int nums = 4;
   
@@ -271,9 +243,6 @@ void setFileName(uint16_t index) {
   fileName[nums + 1] = '0' + (index % 10);
 }
 
-// given the current setFileName,
-// read that file into memory reading all values into sdOutput
-// then pushing bpm average and qrs time average to the fields as well
 void readFile() {
   char* name = (char *) getCurrentFile(); 
   fileName[4] = name[4];
@@ -283,17 +252,11 @@ void readFile() {
   uint32_t indexInFile = 0;
   sdIndex = 0;
   int c;
-
-  // Throw away begining info 
   for (int i = 0; i < 11;i++) file.read();
-
-  // Get average BPMs
   uint16_t bpmRet = 0;
   while((c = file.read()) != ',') {
     bpmRet = bpmRet * 10 + (c - '0');
   }
-
-  // Get average QRS time
   char qrsVal[5];
   int index = 0;
   while ((c = file.read()) != '\n') {
@@ -306,7 +269,6 @@ void readFile() {
   bpmSum = bpmRet;
   numBPMs = 1;
 
-  // Get all samples
   while ((c = file.read()) >= 0) {
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
@@ -324,7 +286,6 @@ void readFile() {
 
 }
 
-// Open a given file to write to 
 void openFile(uint16_t index) {
   setFileName(index);
   Serial.println("Attempting to Open File... "); 
@@ -337,9 +298,6 @@ void openFile(uint16_t index) {
   Serial.println(fileName);
 }
 
-// Write the sdOutput to the SD card
-// will write up to the sdIndex number of samples
-// also writes header
 void writeToSD() { 
   setFileName(sampleNumber);
   sd.remove(fileName);
@@ -369,9 +327,9 @@ void writeToSD() {
   file.close();
 }
 
-//--------------------------------------------------------------------------------------------------------  
-//----------------------------------- Setup and Init Methods ---------------------------------------------
-//--------------------------------------------------------------------------------------------------------  
+//------------------------------------------------------------------------------------------------------------------------------------------------------  
+//----------------------------------- Setup and Init Methods -------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 void setup() {
@@ -675,9 +633,9 @@ void pdbInit() {
 
 
 
-//-------------------------------------------------------------------------------------------
-//--------------------------------- Filtering -----------------------------------------------
-//-------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------------------------------------------
+//--------------------------------- Filtering ---------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------------------------------------
 
 
 static float xv[NZEROS+1], yv[NPOLES+1];
@@ -729,14 +687,16 @@ float integrate(float qrs[], int leng) {
 }
 
 
-//----------------------------------------------------------------------------------------------------------
-//------------------------------------------- LOOP ---------------------------------------------------------
-//----------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
+//------------------------------------------- LOOP -------------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 void loop() {
   uint32_t time = millis();
   int sensorVal;
+
+  //----------------------------- Button Presses -------------------------------------
   //check if the down button was pressed
   sensorVal = digitalRead(0);
   if (prevDown != sensorVal && sensorVal == LOW) {
@@ -915,8 +875,12 @@ void pdb_isr() {
   PDB0_SC &= ~PDB_SC_PDBIF;
 }
 
-//-------------------------------------- Helpers Methopds -------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------- Helpers Methopds --------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------------------------------
 
+//removes the line from the last iteration through the display
+//redraws the grid lines in area where they were over written
 void removeLine() {
   uint32_t oldVal = removeQueue(graphDisplay);
   uint32_t oldVal2 = peekQueue(graphDisplay);
@@ -934,6 +898,8 @@ void removeLine() {
   redrawHorLines(xStart, oldVal, xStart + lineDelta, oldVal2);
 }
 
+//adds a line to the graph, draws 3 lines to give the aperance that
+//the line is thicker
 void addLine(uint32_t temp, uint32_t yVal) {
   tft.drawLine(xPos, temp, xPos + lineDelta, yVal, GRAPH_LINE);
   tft.drawLine(xPos, temp - 1, xPos + lineDelta, yVal - 1, GRAPH_LINE);
@@ -945,6 +911,7 @@ void addLine(uint32_t temp, uint32_t yVal) {
   }
 }
 
+//draws a up arrow for the file choose state
 void drawUpArrow() {
   tft.drawLine(160, 100, 160, 65, MENU_TEXT);
   tft.drawLine(160, 65, 150, 75, MENU_TEXT);
@@ -952,12 +919,16 @@ void drawUpArrow() {
 
 }
 
+//draws a down arrow for the file choose state
 void drawDownArrow() {
   tft.drawLine(160, 150, 160, 185, MENU_TEXT);
   tft.drawLine(160, 185, 150, 175, MENU_TEXT);
   tft.drawLine(160, 185, 170, 175, MENU_TEXT);
 }
 
+
+//if adc as a new data point then hasDataAction is called
+//adds data to the grpah, calculated qrs time and duration
 void hasDataAction(uint32_t time) {
   float dataPoint = transform(adcData);
 
@@ -1021,7 +992,7 @@ int findPeak() {
   return maxIndex;
 }
 
-
+//ouputs the current bpm to the screen
 void hasBPMAction() {
   uint16_t bpm = getBPM();
   bpmSum += bpm;
@@ -1035,11 +1006,13 @@ void hasBPMAction() {
   clearRed = true;
 }
 
+//clears the red box at the bottom representing a heart beat
 void clearRedAction() {
   tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
   clearRed = false;
 }
 
+//looks at the times for the last qrs spikes and calculates the beats per minute
 uint32_t getBPM() {
  int bpmIndex = qrs->endPoint;
  double diff = 0.0;
@@ -1054,6 +1027,8 @@ uint32_t getBPM() {
 } 
 
 //---------------------- Grid Drawing Util -------------------------------
+
+//redraws the horizontal lines, only redraws in places that it needs to 
 void redrawHorLines(int x1, int y1, int x2, int y2) {
   int minY = min(y1, y2) - 1;
   int maxY = max(y1, y2) + 1;
@@ -1067,7 +1042,7 @@ void redrawHorLines(int x1, int y1, int x2, int y2) {
 }
 
 
-
+//redraws the vertical lines, only redraws in places that it needs to 
 void redrawVertLines(int x1, int y1, int x2, int y2) {
   int minY = min(y1, y2);
   int maxY = max(y1, y2);
@@ -1080,7 +1055,7 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
   }
 }
 
-//Used when recalling data from sd card
+//Used when recalling data from sd card, draws a section of the graph from values in SD output
 void drawGraphSection(uint32_t oldIndex, uint32_t newIndex) {
   if(oldIndex != -1) {
     uint32_t tempXpos = 0;
@@ -1115,6 +1090,8 @@ void drawGraphSection(uint32_t oldIndex, uint32_t newIndex) {
 
 const uint8_t thresh = 4;
 
+//given a peak in the array of values it travels forward and backwards looking for a min
+//these mins are used to calculate the qrs duration
 uint32_t findMinIndexFromPeak(uint32_t peakIndex, bool lookRight) { 
   peakIndex = sdIndex - peakIndex;
   int delta = lookRight ? 1 : -1;
@@ -1137,13 +1114,3 @@ uint32_t findMinIndexFromPeak(uint32_t peakIndex, bool lookRight) {
   }
   return i / 10;
 }
-
-
-
-
-
-
-
-
-
-
