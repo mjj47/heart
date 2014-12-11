@@ -563,11 +563,11 @@ if (hasData && reading_state) {
       tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, GRAPH_LINE);       
     }
   }
-  if(hasBPM && readingState) {
+  if(hasBPM && reading_state) {
     uint16_t bpm = getBPM();
     tft.setTextColor(BOTTOM_TEXT_COLOR);
     tft.setTextSize(2);
-    tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); t.print(bpm);
+    tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); tft.print(bpm);
   }
 }
 
