@@ -31,6 +31,8 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define NPOLES 8
 #define GAIN   4.549356222e+01
 
+#define INTRA_AVERAGE_LENGTH 100
+
 
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
@@ -112,6 +114,7 @@ uint16_t numBPMs = 0;
 // Running total of QRS for a trial
 double qrsSum = 0;
 uint16_t numQRSs = 0;
+
 
 
 //-------------------------------------------------------------------------------------
@@ -790,7 +793,7 @@ void loop() {
   //-------------------------- Recall State Actions -------------------------------
   if(recallSate) {
     if(selectEvent) {
-      toMenuState = true;
+      toReportState = true;
     } 
     if(upEvent || downEvent) {
       uint32_t oldIndex = sdRecallIndex;
@@ -816,12 +819,15 @@ void loop() {
   }
 
   if(toReportState) {
-    writeToSD(); 
-    sampleNumber++;
-    sampleNumber = sampleNumber % 100;
+    if (readState) {
+      writeToSD(); 
+      sampleNumber++;
+      sampleNumber = sampleNumber % 100;
+    }
     sdIndex = 0;
     reportState = true;
     readState = false;
+    recallSate = false;
     toReportState = false;
     initReportState();
   }
@@ -909,6 +915,7 @@ void drawDownArrow() {
 
 void hasDataAction(uint32_t time) {
   float dataPoint = transform(adcData);
+
   hasData = false;    
   uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
   
@@ -928,7 +935,12 @@ void hasDataAction(uint32_t time) {
 
   //qrs detect
   uint32_t slope = averageSlope(10);
-  if (slope > 9000 && time - qrsDetected > 200) {
+  //calculate running max average and average
+
+  if (slope > 12000 && time - qrsDetected > 200) {
+
+
+
     hasBPM = true;
     addQueue(qrs, time);
     qrsDetected = time;
@@ -944,7 +956,6 @@ void hasDataAction(uint32_t time) {
   if(hasInflection && time - qrsDetected > 80) {
     int peakIndex = findPeak();
     float qrsTime = (findMinIndexFromPeak(peakIndex, true) + findMinIndexFromPeak(peakIndex, false)) * (1.0 / HERTZ);
-    Serial.println(qrsTime);
     qrsSum += qrsTime;
     numQRSs++;
     hasInflection = false;
