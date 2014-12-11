@@ -370,6 +370,10 @@ void initFileChooseState() {
 //------------------ Init Recall State --------------------------
 
 void initRecallState() {
+  //init the graph
+  tft.fillScreen(GRAPH_BACKGROUND);
+  initVertLines();
+  initHorLines();
   sdRecallIndex = 0;
   readFile();
   drawGraphSection(-1, 0);
