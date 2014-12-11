@@ -31,6 +31,8 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define NPOLES 8
 #define GAIN   4.549356222e+01
 
+#define INTRA_AVERAGE_LENGTH 100;
+
 
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
@@ -108,6 +110,10 @@ int sdRecallIndex = 0;
 // Running total of BPM for a trial
 uint32_t bpmSum = 0;
 uint16_t numBPMs = 0;
+
+uint32_t maxIntaAverage = 0;
+float maxIntaDegradation = .5;
+uint32_t runningIntaAverage = 0;
 
 
 //-------------------------------------------------------------------------------------
@@ -879,6 +885,7 @@ void drawDownArrow() {
 
 void hasDataAction(uint32_t time) {
   float dataPoint = transform(adcData);
+
   hasData = false;    
   uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
   
@@ -898,7 +905,19 @@ void hasDataAction(uint32_t time) {
 
   //qrs detect
   uint32_t slope = averageSlope(10);
+  //calculate running max average and average
+  maxIntaAverage = (float) maxIntaAverage * maxIntaDegradation;
+  maxIntaAverage = max(maxIntaAverage, maxIntaAverage);
+  runningIntaAverage = ((runningAverage * INTRA_AVERAGE_LENGTH) - runningAverage + slope) / INTRA_AVERAGE_LENGTH
+
+
+
   if (slope > 9000 && time - qrsDetected > 200) {
+    Serial.println(maxIntaAverage);
+    Serial.println(runningAverage);
+    Serial.println(slope);
+    Serial.println();
+  
     for (int ii = 0; ii < 40; ii++) {
       Serial.print(sdOutput[sdIndex - 1 - ii]);
       Serial.print(", ");
