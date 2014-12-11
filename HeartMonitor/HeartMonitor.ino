@@ -22,6 +22,8 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define CALIBRATING ILI9341_BLACK
 #define MENU_HEADER ILI9341_RED
 #define MENU_TEXT ILI9341_WHITE
+#define BOTTOM_BOX_COLOR ILI9341_BLACK
+#define BOTTOM_TEXT_COLOR ILI9341_WHITE
 
 #define NZEROS 8
 #define NPOLES 8
@@ -44,6 +46,7 @@ const float TIME_GRID_DELTA = .04;
 uint32_t num_vert_lines = (float) DISPLAY_QUEUE_LENGTH / HERTZ / TIME_GRID_DELTA;
 uint32_t grid_delta; 
 const int HEART_INPUT = 14;
+uint32_t bottom_box_y;
 uint16_t lineDelta;
 uint16_t xPos = 0;
 uint16_t blankSpace = 0;
@@ -68,6 +71,9 @@ uint32_t oldXpos = 0;
 volatile boolean hasBPM;
 
 
+//----------------------------------- Queue Methods ------------------------------------
+
+
 typedef struct queue_struct
 {
   uint32_t* vals;
@@ -83,11 +89,6 @@ const int QRS_BPM_LENGTH = 10;
 Queue* graphDisplay;
 Queue* qrs;
 Queue* qrsTimes;
-
-//----------------------------------- Queue Methods ------------------------------------
-
-
-
 
 uint32_t peekEndQueue(void * t) {
   Queue * q = (Queue *) t; 
@@ -243,10 +244,12 @@ void setup() {
 
 void initReadingDataState(uint32_t time) {
     tft.fillScreen(GRAPH_BACKGROUND);
+    tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, BOTTOM_BOX_COLOR);   
     tft.setCursor(tft.width() / 2 - 80, tft.height() / 2);
     tft.setTextColor(CALIBRATING);
     tft.setTextSize(2);
     tft.print("Callibrating....");
+    bottom_box_y = tft.height() - 30;
     int maxV = -1;
     int minV = 1024;
     int index = 0;
@@ -529,7 +532,7 @@ void loop() {
 if (hasData && reading_state) {
     float dataPoint = transform(adcData);
     hasData = false;    
-    uint32_t yVal = tft.height() *  dataPoint / 4095;
+    uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
     
     //if the queue is full remove a line
     if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
@@ -549,16 +552,20 @@ if (hasData && reading_state) {
     uint32_t slope = averageSlope(10);
     if (slope > 14000 && time - beatDetected > 100) {
       hasBPM = true;
-      addQueue(qrsTimes, time);
+      addQueue(qrs, time);
       beatDetected = time;
       tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
       tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
       oldXpos = xPos;
-      //addQueue(qrs, time);
-      
+      tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, GRAPH_LINE);       
     }
-    //addQueue(qrs, slope);
-  }   
+  }
+  if(hasBPM) {
+    uint16_t bpm = getBPM();
+    tft.setTextColor(BOTTOM_TEXT_COLOR);
+    tft.setTextSize(1);
+    tft.setCursor(0, tft.height() - 25); tft.print(bpm);
+  }
 }
 
 
