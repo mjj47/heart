@@ -109,6 +109,10 @@ int sdRecallIndex = 0;
 uint32_t bpmSum = 0;
 uint16_t numBPMs = 0;
 
+// Running total of QRS for a trial
+double qrsSum = 0;
+uint16_t numQRSs = 0;
+
 
 //-------------------------------------------------------------------------------------
 //----------------------------------- Queue Methods ------------------------------------
@@ -242,10 +246,27 @@ void readFile() {
   uint32_t indexInFile = 0;
   sdIndex = 0;
   int c;
+  for (int i = 0; i < 11;i++) file.read();
+  uint16_t bpmRet = 0;
+  while((c = file.read()) != ',') {
+    bpmRet = bpmRet * 10 + (c - '0');
+  }
+  char qrsVal[5];
+  int index = 0;
+  while ((c = file.read()) != '\n') {
+    qrsVal[index] = c;
+    index++;
+  }
+  float qrsF = atof(qrsVal);
+  qrsSum = qrsF;
+  numQRSs = 1;
+  bpmSum = bpmRet;
+  numBPMs = 1;
+
   while ((c = file.read()) >= 0) {
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
-    } else if ((indexInFile > 12 && c == ',') ||(indexInFile > 12 && c == '\n' )) {
+    } else if (c == ','|| c == '\n' ) {
       sdOutput[sdIndex] = val;
       val = 0;
       sdIndex++;
@@ -281,7 +302,11 @@ void writeToSD() {
   }
   file.print(sampleNumber);
   file.print(",");
-  file.println(HERTZ);
+  file.print(HERTZ);
+  file.print(",");
+  file.print(bpmSum / numBPMs);
+  file.print(",");
+  file.println(qrsSum / numQRSs);
   int rows = (sdIndex - 1) / 8 + 1;
   for (int row = 0; row < rows; row++) {
     file.print(sdOutput[row * 8]);
@@ -425,6 +450,7 @@ void initReadDataState(uint32_t time) {
     uint32_t calTime = millis();
     while(bpm < 45 || bpm > 80 || (millis() - calTime < 5000)) {
       if(!hasData) {
+        delay(2);
         continue;
       }
       hasData = false;
@@ -474,17 +500,22 @@ void initReportState() {
   tft.setCursor(45, 10); tft.print("EKG Summary");
   tft.setTextSize(2);
   tft.setTextColor(MENU_TEXT);
-  tft.setCursor(10, 100);
+  tft.setCursor(10, 70);
   uint16_t bpmAv = bpmSum / numBPMs;
+
+  double qrsAv = qrsSum / numQRSs;
   tft.print("Average BPM: ");
   tft.print(bpmAv);
+  tft.setCursor(10, 100);
+  tft.print("Average QRS: ");
+  tft.print(qrsAv);
 
   int delta = 30;
   int startYPos = 130;
   tft.setCursor(10, startYPos); tft.print("Bradycardia: "); tft.print(bpmAv < 60 ? "Symptomatic" : "Asymptomatic");
   tft.setCursor(10, startYPos + delta); tft.print("Tachycardia: "); tft.print(bpmAv > 100 ? "Symptomatic" : "Asymptomatic");
-  tft.setCursor(10, startYPos + 2 * delta); tft.print("        PVC: ");
-  tft.setCursor(10, startYPos + 3 * delta); tft.print("        PAC: ");
+
+  tft.setCursor(10, startYPos + 2 * delta); tft.print("        PVC: "); tft.print(qrsAv > .12 ? "Symptomatic" : "Asymptomatic");
   bpmSum = 0;
   numBPMs = 0;
 }
@@ -898,12 +929,6 @@ void hasDataAction(uint32_t time) {
   //qrs detect
   uint32_t slope = averageSlope(10);
   if (slope > 9000 && time - qrsDetected > 200) {
-    for (int ii = 0; ii < 40; ii++) {
-      Serial.print(sdOutput[sdIndex - 1 - ii]);
-      Serial.print(", ");
-    }
-    Serial.println();
-
     hasBPM = true;
     addQueue(qrs, time);
     qrsDetected = time;
@@ -920,14 +945,16 @@ void hasDataAction(uint32_t time) {
     int peakIndex = findPeak();
     float qrsTime = (findMinIndexFromPeak(peakIndex, true) + findMinIndexFromPeak(peakIndex, false)) * (1.0 / HERTZ);
     Serial.println(qrsTime);
+    qrsSum += qrsTime;
+    numQRSs++;
     hasInflection = false;
   }
 }
 
 //go back in time to find the R wave time
 int findPeak() {
-  maxIndex = 0;
-  maxValue = 0;
+  uint32_t maxIndex = 0;
+  uint32_t maxValue = 0;
   for(int i = 0; i < 40; i++) {
     int val = sdOutput[sdIndex - 1 - i];
     if(sdOutput[sdIndex - 1 - i] > maxValue) {
@@ -1030,15 +1057,16 @@ void drawGraphSection(uint32_t oldIndex, uint32_t newIndex) {
   }
 }
 
-const uint8_t thresh = 3;
+const uint8_t thresh = 4;
 
 uint32_t findMinIndexFromPeak(uint32_t peakIndex, bool lookRight) { 
   peakIndex = sdIndex - peakIndex;
   int delta = lookRight ? 1 : -1;
   int i = 0;
-  while(true) {
+
+  for (int k = 0; k < 30; k++) {
     bool found = true;
-    uint32_t prev = peakIndex + i * delta
+    uint32_t prev = peakIndex + i * delta;
     for (int j = 0; j < thresh; j++) {
       if (sdOutput[prev + delta] < sdOutput[prev]) {
         found = false;
@@ -1051,6 +1079,7 @@ uint32_t findMinIndexFromPeak(uint32_t peakIndex, bool lookRight) {
 
     i++;
   }
+  return i / 10;
 }
 
 
