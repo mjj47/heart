@@ -710,10 +710,10 @@ void loop() {
     if(upEvent || downEvent) {
       uint32_t oldIndex = sdRecallIndex;
       if(upEvent) {
-        sdRecallIndex = min(HERTZ * RECORD_TIME - DISPLAY_QUEUE_LENGTH, sdRecallIndex +  DISPLAY_QUEUE_LENGTH / 3);
+        sdRecallIndex = min(HERTZ * RECORD_TIME - DISPLAY_QUEUE_LENGTH, sdRecallIndex +  DISPLAY_QUEUE_LENGTH / 2);
       }
       if(downEvent) {
-        sdRecallIndex = max(0, sdRecallIndex - DISPLAY_QUEUE_LENGTH / 3);
+        sdRecallIndex = max(0, sdRecallIndex - DISPLAY_QUEUE_LENGTH / 2);
       }
       drawGraphSection(oldIndex, sdRecallIndex);
     }
