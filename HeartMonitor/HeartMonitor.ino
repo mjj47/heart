@@ -170,6 +170,9 @@ void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
   ret->max_length = queueLength;
+  ret->startPoint = 0;
+  ret->endPoint = 0;
+  ret->queueSize = 0;
   return ret;
 }
 
@@ -311,6 +314,8 @@ void setup() {
   
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
+  bottom_box_y = tft.height() - 30;
+
   
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
     Serial.println("Can't write to SD card");
@@ -383,39 +388,70 @@ void initRecallState() {
 
 void initReadDataState(uint32_t time) {
     tft.fillScreen(GRAPH_BACKGROUND);
-    tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, BOTTOM_BOX_COLOR);   
     tft.setCursor(tft.width() / 2 - 80, tft.height() / 2);
     tft.setTextColor(CALIBRATING);
     tft.setTextSize(2);
     tft.print("Callibrating....");
-    bottom_box_y = tft.height() - 30;
-    int maxV = -1;
-    int minV = 1024;
-    int index = 0;
-    int calBuf[300];
-    int calBufSize = 0;
-    while(abs(maxV - minV) > 1100) {
+
+    //Calibration method 1, wait till the magnitude shrinks past n
+    // int maxV = -1;
+    // int minV = 1024;
+    // int index = 0;
+    // int calBuf[300];
+    // int calBufSize = 0;
+    // while(abs(maxV - minV) > 1100) {
+    //   if(!hasData) {
+    //     continue;
+    //   }
+    //   calBuf[calBufSize % 200] = adcData;
+    //   calBufSize++;
+    //   hasData = false;
+    //   if(calBufSize < 200) {
+    //     continue;
+    //   }
+    //   maxV = -1;
+    //   minV = 1024;
+    //   for(int i  = 0; i < 200; i++) {
+    //     maxV = max(calBuf[i], maxV);
+    //     minV = min(calBuf[i], minV);
+    //   }
+    // }
+
+    //Calibration method 2, wail till BPM falls in a certain range
+    uint32_t bpm = 0;
+    uint32_t calTime = millis();
+    while(bpm < 45 || bpm > 80 || (millis() - calTime < 5000)) {
+      Serial.println("here1");
       if(!hasData) {
         continue;
       }
-      calBuf[calBufSize % 200] = adcData;
-      calBufSize++;
       hasData = false;
-      if(calBufSize < 200) {
-        continue;
+      float dataPoint = transform(adcData);
+      sdOutput[sdIndex] = dataPoint;
+      sdIndex++; 
+      uint32_t slope = averageSlope(10);
+      uint32_t time = millis();
+      if (slope > 9000 && time - qrsDetected > 200) {
+        addQueue(qrs, time);
+        qrsDetected = time;
+        bpm = getBPM();
+        tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y, GRAPH_BACKGROUND);
+        tft.setTextColor(GRAPH_LINE);
+        tft.setTextSize(2);
+        tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); tft.print(bpm);
       }
-      maxV = -1;
-      minV = 1024;
-      for(int i  = 0; i < 200; i++) {
-        maxV = max(calBuf[i], maxV);
-        minV = min(calBuf[i], minV);
-      }
+      
     }
+
+    Serial.println("here2");
+
     
     //init the graph
     tft.fillScreen(GRAPH_BACKGROUND);
     initVertLines();
     initHorLines();
+    tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, BOTTOM_BOX_COLOR);   
+
     
     //reset the queue
     resetQueue(graphDisplay);
