@@ -121,8 +121,16 @@ uint16_t numQRSs = 0;
 //----------------------------------- Queue Methods ------------------------------------
 //-------------------------------------------------------------------------------------
 
+// Because arduino requires developers to add .h files as a external library in order to pass
+// pointers to structs to methods, we got around the problem by passing and returning void *'s 
+// then casting where appropriate 
 
 
+// A queue has an array of uint32 values
+// pointer to the beginning
+// pointer to the end
+// max possible size
+// and a current size
 typedef struct queue_struct
 {
   uint32_t* vals;
@@ -139,6 +147,9 @@ Queue* graphDisplay;
 Queue* qrs;
 Queue* qrsTimes;
 
+
+
+// return the last element of the queue, does not modify
 uint32_t peekEndQueue(void * t) {
   Queue * q = (Queue *) t; 
   int index = q->endPoint - 1;
@@ -146,12 +157,12 @@ uint32_t peekEndQueue(void * t) {
   return q->vals[index];
 }
 
-
+// return the first element of the queue, does not modify
 uint32_t peekQueue(void* t) {
   Queue * q = (Queue *) t;
   return q->vals[q->startPoint];
 }
-
+// returns and removes the first element of the queue
 uint32_t removeQueue(void* t) {
   Queue * q = (Queue *) t;
   q->queueSize--;
@@ -161,6 +172,9 @@ uint32_t removeQueue(void* t) {
   return temp;
 }
  
+// adds an element to the end of the queue, will 
+// overwrite circularly if the queueSize is greater than
+// the queue max_length
 void addQueue(void* t, uint32_t value) {
   Queue * q = (Queue *) t;
   q->queueSize++;
@@ -169,6 +183,7 @@ void addQueue(void* t, uint32_t value) {
   q->endPoint = q->endPoint % q->max_length;
 }
 
+// sets everything in the queue to 0
 void resetQueue(void* t) {
   Queue * q = (Queue *) t;
   q->startPoint = 0;
@@ -176,6 +191,8 @@ void resetQueue(void* t) {
   q->queueSize = 0;
 }
 
+// initializes and returns a new queue.  The 
+// queue can hold up to queueLength items
 void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
@@ -190,10 +207,18 @@ void* initQueue(uint32_t queueLength) {
 //-------------------------------------- File Methods ---------------------------------
 //-------------------------------------------------------------------------------------
 
+
+// ~~~ File Iterator readback Section ~~~~
+
+// which index we are currently looking at in fileSelectState
 int16_t fileNameIndex = 0;
+// All the potential file names
 char* fileNames[100];
+// how many of those files we have on SD card
 uint16_t maxFileIndex = 0;
 
+
+// read from the SD card all the file names, store them in fileNames
 void readFileNames() {
   int i;
   maxFileIndex = 0;
@@ -203,6 +228,7 @@ void readFileNames() {
   }
   for(i = 0; file.openNext(sd.vwd(), O_READ); i++) {
     char* name = file.name();
+    // Only write DATA files
     if (name[0] != 'D' || name[1] != 'A' || name[2] != 'T' || name[3] != 'A') {
       file.close();
       continue;
@@ -215,24 +241,29 @@ void readFileNames() {
   }
 }
 
-
+// Iterator through file index, move forward
 void moveNextFile() {
   if (fileNameIndex + 1 != maxFileIndex){
     fileNameIndex++;
   }
 }
 
+// Iterator backwards through file index
 void movePrevFile() {
   if (fileNameIndex != 0) {
     fileNameIndex--;
   }
 }
 
+// Return our current values of the file name
 char * getCurrentFile() {
   return fileNames[fileNameIndex];
 }
 
 
+// ~~~ File Processing Section ~~~~
+
+// sets the fileName pointed to to a certion index
 void setFileName(uint16_t index) {
   int nums = 4;
   
@@ -240,6 +271,9 @@ void setFileName(uint16_t index) {
   fileName[nums + 1] = '0' + (index % 10);
 }
 
+// given the current setFileName,
+// read that file into memory reading all values into sdOutput
+// then pushing bpm average and qrs time average to the fields as well
 void readFile() {
   char* name = (char *) getCurrentFile(); 
   fileName[4] = name[4];
@@ -249,11 +283,17 @@ void readFile() {
   uint32_t indexInFile = 0;
   sdIndex = 0;
   int c;
+
+  // Throw away begining info 
   for (int i = 0; i < 11;i++) file.read();
+
+  // Get average BPMs
   uint16_t bpmRet = 0;
   while((c = file.read()) != ',') {
     bpmRet = bpmRet * 10 + (c - '0');
   }
+
+  // Get average QRS time
   char qrsVal[5];
   int index = 0;
   while ((c = file.read()) != '\n') {
@@ -266,6 +306,7 @@ void readFile() {
   bpmSum = bpmRet;
   numBPMs = 1;
 
+  // Get all samples
   while ((c = file.read()) >= 0) {
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
@@ -283,6 +324,7 @@ void readFile() {
 
 }
 
+// Open a given file to write to 
 void openFile(uint16_t index) {
   setFileName(index);
   Serial.println("Attempting to Open File... "); 
@@ -295,6 +337,9 @@ void openFile(uint16_t index) {
   Serial.println(fileName);
 }
 
+// Write the sdOutput to the SD card
+// will write up to the sdIndex number of samples
+// also writes header
 void writeToSD() { 
   setFileName(sampleNumber);
   sd.remove(fileName);
