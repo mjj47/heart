@@ -298,7 +298,7 @@ void setup() {
   pinMode(HEART_INPUT, INPUT);
 
   Serial.begin(9600);
-  //while (!Serial);
+  while (!Serial);
 
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
@@ -364,7 +364,7 @@ void initFileChooseState() {
 void initRecallState() {
   sdRecallIndex = 0;
   readFile();
-  drawGraphSection();
+  drawGraphSection(-1, 0);
 }
 
 //------------------- Init Read State ------------------------
@@ -695,13 +695,14 @@ void loop() {
       toMenuState = true;
     } 
     if(upEvent || downEvent) {
+      uint32_t oldIndex = sdRecallIndex;
       if(upEvent) {
         sdRecallIndex = min(HERTZ * RECORD_TIME - DISPLAY_QUEUE_LENGTH, sdRecallIndex +  DISPLAY_QUEUE_LENGTH / 3);
       }
       if(downEvent) {
         sdRecallIndex = max(0, sdRecallIndex - DISPLAY_QUEUE_LENGTH / 3);
       }
-      drawGraphSection();
+      drawGraphSection(oldIndex, sdRecallIndex);
     }
   }
 
@@ -886,13 +887,29 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
 }
 
 //Used when recalling data from sd card
-void drawGraphSection() {
-  tft.fillScreen(GRAPH_BACKGROUND);
-  initVertLines();
-  initHorLines();
+void drawGraphSection(uint32_t oldIndex, uint32_t newIndex) {
+  if(oldIndex != -1) {
+    uint32_t tempXpos = 0;
+    uint32_t oldyVal = tft.height() - tft.height() *  sdOutput[sdRecallIndex] / 4095;
+    for(int i = oldIndex + 1; i < oldIndex + DISPLAY_QUEUE_LENGTH; i++) {
+      uint32_t yVal = tft.height() - tft.height() *  sdOutput[i] / 4095;
+      tft.drawLine(tempXpos, oldyVal, tempXpos + lineDelta,
+                  yVal, GRAPH_BACKGROUND);
+      tft.drawLine(tempXpos, oldyVal + 1, tempXpos + lineDelta,
+                  yVal + 1, GRAPH_BACKGROUND);                
+      tft.drawLine(tempXpos, oldyVal - 1, tempXpos + lineDelta,
+                  yVal - 1, GRAPH_BACKGROUND);
+      redrawVertLines(tempXpos, oldyVal, tempXpos + lineDelta, yVal);
+      redrawHorLines(tempXpos, oldyVal, tempXpos + lineDelta, yVal);
+
+      oldyVal = yVal;
+      tempXpos += lineDelta;
+    }
+  }
+
   uint32_t tempXpos = 0;
   uint32_t oldyVal = tft.height() - tft.height() *  sdOutput[sdRecallIndex] / 4095;
-  for(int i = sdRecallIndex + 1; i < sdRecallIndex + DISPLAY_QUEUE_LENGTH; i++) {
+  for(int i = newIndex + 1; i < newIndex + DISPLAY_QUEUE_LENGTH; i++) {
     uint32_t yVal = tft.height() - tft.height() *  sdOutput[i] / 4095;
     tft.drawLine(tempXpos, oldyVal, tempXpos + lineDelta, yVal, GRAPH_LINE);
     tft.drawLine(tempXpos, oldyVal - 1, tempXpos + lineDelta, yVal - 1, GRAPH_LINE);
@@ -901,6 +918,8 @@ void drawGraphSection() {
     tempXpos += lineDelta;
   }
 }
+
+
 
 
 
