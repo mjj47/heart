@@ -78,7 +78,7 @@ typedef struct queue_struct
 } Queue;
 
 const int QRS_QUEUE_LENGTH = 10;
-const int QRS_BPM_LENGTH = 4;
+const int QRS_BPM_LENGTH = 10;
 
 Queue* graphDisplay;
 Queue* qrs;
@@ -216,6 +216,8 @@ void setup() {
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
   qrsTimes = (Queue *) initQueue(QRS_BPM_LENGTH);
+
+  
 
   
   Serial.begin(9600);
@@ -552,8 +554,10 @@ if (hasData && reading_state) {
       tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
       tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
       oldXpos = xPos;
+      //addQueue(qrs, time);
+      
     }
-    addQueue(qrs, slope);
+    //addQueue(qrs, slope);
   }   
 }
 
