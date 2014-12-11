@@ -30,50 +30,76 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define NPOLES 8
 #define GAIN   4.549356222e+01
 
-//------------------------- Glabals -----------------------------------------
-
-const int DISPLAY_QUEUE_LENGTH = 321;
 
 const uint8_t chipSelect = SD_CS;
 SdFat sd;
 SdFile file;
 char fileName[13] = FILE_BASE_NAME "00.CSV";
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TFT_CS, TFT_DC);
+uint32_t PDB_CONFIG;
 
-volatile uint32_t PDB_CONFIG;
+//TODO: move to defines
 const int HERTZ = 250;
 const float TIME_GRID_DELTA = .04;
+const int HEART_INPUT = 14;
+const int DISPLAY_QUEUE_LENGTH = 321;
 
+
+//Graph Vars
 uint32_t num_vert_lines = (float) DISPLAY_QUEUE_LENGTH / HERTZ / TIME_GRID_DELTA;
 uint32_t grid_delta; 
-const int HEART_INPUT = 14;
 uint32_t bottom_box_y;
 uint16_t lineDelta;
 uint16_t xPos = 0;
-uint16_t blankSpace = 0;
-volatile boolean reading_state = false;
-int prev = HIGH;
-uint32_t count = 0;
-boolean menu_state = true;
-boolean to_menu_state = false;
-uint16_t sampleNumber = 0;
-volatile boolean hasData;
-volatile uint32_t adcData;
-const uint8_t RECORD_TIME = 30;
-uint32_t sdOutput[HERTZ * RECORD_TIME];
-volatile uint32_t sdIndex = 0;
-int i2 = 0;
-uint32_t startTime;
-volatile boolean to_munu_state;
-volatile int prev2;
-uint32_t beatDetected = 0;
 uint32_t oldXpos = 0;
-boolean clearRed = false;
+uint16_t blankSpace = 0;
 
-volatile boolean hasBPM;
+//Button globals
+int prevUp = HIGH;
+int prevSelect = HIGH;
+int prevDown = HIGH;
+bool upEvent = false;
+bool selectEvent = false;
+bool downEvent = false;
+
+//state and state transitions 
+bool readState = false;
+bool menuState = false;
+bool fileChooseState = false;
+bool reportState = false;
+bool recallSate = false;
+
+bool toMenuState = false;
+bool toReadState =  false;
+bool toFileChooseState = false;
+bool toReportState = false;
+bool toRecallState = false;
+
+bool clearRed = false;
+bool hasBPM = false;
+bool hasData = false;
 
 
+//TODO: temperal and frame rate vars
+uint32_t qrsDetected = 0;
+uint32_t readStateStartTime = 0;
+
+
+volatile uint32_t adcData;
+
+//SD card Vars
+//move to define
+const uint8_t RECORD_TIME = 30;
+
+uint32_t sdOutput[HERTZ * RECORD_TIME];
+uint32_t sdIndex = 0;
+uint16_t sampleNumber = 0;
+
+
+//-------------------------------------------------------------------------------------
 //----------------------------------- Queue Methods ------------------------------------
+//-------------------------------------------------------------------------------------
+
 
 
 typedef struct queue_struct
@@ -136,7 +162,9 @@ void* initQueue(uint32_t queueLength) {
   return ret;
 }
 
-//------------------------------ File Methods -----------------------------
+//-------------------------------------------------------------------------------------
+//-------------------------------------- File Methods ---------------------------------
+//-------------------------------------------------------------------------------------
 
 void setFileName(uint16_t index) {
   int nums = 4;
@@ -198,37 +226,29 @@ void writeToSD() {
   file.close();
 }
 
-void checkReadBack() {
-  int sensorVal = digitalRead(0);
+//--------------------------------------------------------------------------------------------------------  
+//----------------------------------- Setup and Init Methods ---------------------------------------------
+//--------------------------------------------------------------------------------------------------------  
 
-  if (prev2 != sensorVal && sensorVal == LOW) {
-    readFile(sampleNumber);
-  }
-  prev2 = sensorVal;
-
-}
-  
-//-------------------------------- Init Methods ---------------------------------------------
 
 void setup() {
   tft.begin();
   tft.setRotation(1);
+  pinMode(2, INPUT_PULLUP);
   pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
+  pinMode(HEART_INPUT, INPUT);
+
+  Serial.begin(9600);
+  //while (!Serial);
 
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
   qrsTimes = (Queue *) initQueue(QRS_BPM_LENGTH);
-
-  
-
-  
-  Serial.begin(9600);
-  //while (!Serial);
   
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
-  pinMode(HEART_INPUT, INPUT);
+  
   Serial.println("woot");
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
     Serial.println("Can't write to SD card");
@@ -243,8 +263,38 @@ void setup() {
   initMenuState();
 }
 
+//---------------- Init Menu State  ---------------------------
 
-void initReadingDataState(uint32_t time) {
+void initMenuState() {
+  tft.fillScreen(MENU_BACKGROUND);
+  tft.setTextColor(MENU_HEADER);
+  tft.setTextSize(3);
+  tft.setCursor(45, 10); tft.print("EKG Monitor");
+  tft.setTextSize(2);
+  tft.setTextColor(MENU_TEXT);
+  tft.setCursor(30, 80); tft.print("Begin reading");  
+}
+
+//---------------- Init File Choose State --------------------
+
+void initFileChooseState() {
+  tft.fillScreen(MENU_BACKGROUND);
+  tft.setTextColor(MENU_HEADER);
+  tft.setTextSize(3);
+  tft.setCursor(45, 10); tft.print("File Choose State");
+}
+
+//------------------ Init Recall State --------------------------
+void initRecallState() {
+  tft.fillScreen(MENU_BACKGROUND);
+  tft.setTextColor(MENU_HEADER);
+  tft.setTextSize(3);
+  tft.setCursor(45, 10); tft.print("Recall State");
+}
+
+//------------------- Init Read State ------------------------
+
+void initReadDataState(uint32_t time) {
     tft.fillScreen(GRAPH_BACKGROUND);
     tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, BOTTOM_BOX_COLOR);   
     tft.setCursor(tft.width() / 2 - 80, tft.height() / 2);
@@ -275,7 +325,6 @@ void initReadingDataState(uint32_t time) {
       }
     }
     
-    
     //init the graph
     tft.fillScreen(GRAPH_BACKGROUND);
     initVertLines();
@@ -288,30 +337,24 @@ void initReadingDataState(uint32_t time) {
     xPos = 0;
     
     //reset the sd and time
-    count = time;
+    readStateStartTime = time;
     sdIndex = 0;
     
     //add the first filler data point
     addQueue(graphDisplay, 0);
-    
-    //start reading
-    menu_state = false;
-    reading_state = true;
 }
 
-void initMenuState() {
-  reading_state = false;
+//--------------------- Init Report State -------------------------
+void initReportState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("EKG Monitor");
-  tft.setTextSize(2);
-  tft.setTextColor(MENU_TEXT);
-  tft.setCursor(30, 80); tft.print("Begin reading");
-  menu_state = true;
-  to_menu_state = false;
-  
+  tft.setCursor(45, 10); tft.print("Report State");
 }
+
+
+//--------------------------- Init Helper methods ------------
+
 
 
 void initVertLines() {
@@ -415,46 +458,10 @@ void pdbInit() {
 }
 
 
-//---------------------- Grid Drawing Util -------------------------------
-void redrawHorLines(int x1, int y1, int x2, int y2) {
-  int minY = min(y1, y2) - 1;
-  int maxY = max(y1, y2) + 1;
-  int startingLine = minY / grid_delta;
-  int finishingLine = maxY / grid_delta + 1;
-  for(int i = startingLine ; i <= finishingLine; i++) {
-    if(i * grid_delta <= maxY && i * grid_delta >= minY) {
-      tft.drawLine(x1, i * grid_delta, x2, i * grid_delta,  GRAPH_GRID_LINES);
-    }
-  }
-}
 
-uint32_t getBPM() {
- int bpmIndex = qrs->endPoint;
- double diff = 0.0;
- 
- for (int i = 0; i < qrs->max_length - 1; i++) {
-
-    diff += qrs->vals[(bpmIndex + i + 1) % qrs->max_length] - qrs->vals[(bpmIndex + i) % qrs->max_length];
- }
- diff = diff / (qrs->max_length - 1);
- diff = 60000 / diff;
- return diff;
- 
-} 
-
-void redrawVertLines(int x1, int y1, int x2, int y2) {
-  int minY = min(y1, y2);
-  int maxY = max(y1, y2);
-  int startingLine = x1 / grid_delta;
-  int finishingLine = x2 / grid_delta + 1;
-  for(int i = startingLine; i <= finishingLine; i++) {
-    if(i * grid_delta <= x2 && i * grid_delta >= x1) {
-      tft.drawLine(i * grid_delta, minY - 1, i * grid_delta, maxY + 1, GRAPH_GRID_LINES);
-    }
-  }
-}
-
-//----------------------- Filtering -----------------------------------------
+//-------------------------------------------------------------------------------------------
+//--------------------------------- Filtering -----------------------------------------------
+//-------------------------------------------------------------------------------------------
 
 
 static float xv[NZEROS+1], yv[NPOLES+1];
@@ -505,78 +512,130 @@ float integrate(float qrs[], int leng) {
   return ret;
 }
 
-//--------------------------------- Main ---------------------------------------------------------
+
+//----------------------------------------------------------------------------------------------------------
+//------------------------------------------- LOOP ---------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------
 
 
 void loop() {
   uint32_t time = millis();
-  
-  //check if the button is pressed
-  int sensorVal = digitalRead(1);
-  if (prev != sensorVal && sensorVal == LOW) {
-    if(menu_state) {
-      initReadingDataState(time);
-    } else if(reading_state) {
-      to_menu_state = true;    
+  int sensorVal;
+  //check if the down button was pressed
+  sensorVal = digitalRead(0);
+  if (prevDown != sensorVal && sensorVal == LOW) {
+    downEvent = true;
+  }
+  prevDown = sensorVal;
+
+  //check if the select button was pressed
+  sensorVal = digitalRead(1);
+  if (prevSelect != sensorVal && sensorVal == LOW) {
+    selectEvent = true;
+  }
+  prevSelect = sensorVal;
+
+  //check if the up button was pressed
+  sensorVal = digitalRead(2);
+  if (prevUp != sensorVal && sensorVal == LOW) {
+    upEvent = true;
+  }
+  prevUp = sensorVal;
+
+  //-------------------------- Menu State Actions ---------------------------------
+  if(menuState) {
+    if(selectEvent) {
+      //determine what text is picked
+      //choose between readState and fileChooseState
+      toReadState = true;
+    }
+    if(downEvent) {
+      //move selector down
+    }
+    if(upEvent) {
+      //move selector up
     }
   }
-  prev = sensorVal;
- 
- 
- //timeout   
- if(to_menu_state || reading_state && time - count > 300000 || sdIndex == HERTZ * RECORD_TIME) {
-   writeToSD(); 
-   sampleNumber++;
-   sampleNumber = sampleNumber % 100;
-   sdIndex = 0;
-   initMenuState();
- } 
 
-//do we have data and am in a reading state
-if (hasData && reading_state) {
-    float dataPoint = transform(adcData);
-    hasData = false;    
-    uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
-    
-    //if the queue is full remove a line
-    if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
-      removeLine();
-    } 
-    
-    //grab the oldVal and add a line to the graph
-    uint32_t oldYVal = peekEndQueue(graphDisplay);
-    addLine(oldYVal, yVal);
-    
-    //add the YVal to the queue and data to the sd output
-    addQueue(graphDisplay, yVal);
-    sdOutput[sdIndex] = dataPoint;
-    sdIndex++;  
-
-    //qrs detect
-    uint32_t slope = averageSlope(10);
-    if (slope > 9000 && time - beatDetected > 200) {
-
-      hasBPM = true;
-      addQueue(qrs, time);
-      beatDetected = time;
-      tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
-      tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
-      oldXpos = xPos;    
+  //-------------------------- File Choose State Actions -------------------------------
+  if(fileChooseState) {
+    if(selectEvent) {
+      toRecallState = true;
     }
   }
-  if(hasBPM && reading_state) {
-    uint16_t bpm = getBPM();
-    tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
-    tft.setTextColor(BOTTOM_TEXT_COLOR);
-    tft.setTextSize(2);
-    tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); tft.print(bpm);
-    tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, HEART_BEAT_COLOR);
-    hasBPM = false;
-    clearRed = true;
+
+
+  //-------------------------- Read State Actions -------------------------------
+  if(readState) {
+    if(selectEvent || sdIndex == HERTZ * RECORD_TIME - 1 || time - readStateStartTime > 300000) {
+      toReportState = true;
+    }
+    if(hasData) {
+      hasDataAction(time);
+    }
+    if(hasBPM) {
+      hasBPMAction();
+    }
+    if(time - qrsDetected > 100 && clearRed) {
+      clearRedAction();
+    }
   }
-  if(time - beatDetected > 100 && clearRed) {
-    tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
-    clearRed = false;
+
+  //-------------------------- Report State Actions -------------------------------
+  if(reportState) {
+    if(selectEvent) {
+      toMenuState = true;
+    }
+  }
+
+  //-------------------------- Recall State Actions -------------------------------
+  if(recallSate) {
+    if(selectEvent) {
+      toMenuState = true;
+    }
+  }
+
+
+
+  //----------------------------- State Transitons ------------------------------------
+  if(toMenuState) {
+    initMenuState();
+    menuState = true;
+    reportState = false;
+    recallSate = false;
+    toMenuState = false;
+  }
+
+  if(toReportState) {
+    writeToSD(); 
+    sampleNumber++;
+    sampleNumber = sampleNumber % 100;
+    sdIndex = 0;
+    reportState = true;
+    readState = false;
+    toReportState = false;
+    initReportState();
+  }
+
+  if(toReadState) {
+    menuState = false;
+    readState = true;
+    toReadState = false;
+    initReadDataState(time);
+  }
+
+  if(toFileChooseState) {
+    toFileChooseState = false;
+    fileChooseState = true;
+    menuState = false;
+    initFileChooseState();
+  }
+
+  if(toRecallState) {
+    recallSate = true;
+    toRecallState = true;
+    fileChooseState = false;
+    initRecallState();
   }
 }
 
@@ -591,7 +650,7 @@ void pdb_isr() {
   PDB0_SC &= ~PDB_SC_PDBIF;
 }
 
-//-------------------------------------- Helpers -------------------------------------------
+//-------------------------------------- Helpers Methopds -------------------------------------------
 
 void removeLine() {
   uint32_t oldVal = removeQueue(graphDisplay);
@@ -620,6 +679,98 @@ void addLine(uint32_t temp, uint32_t yVal) {
        
   }
 }
+
+void hasDataAction(uint32_t time) {
+  float dataPoint = transform(adcData);
+  hasData = false;    
+  uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
+  
+  //if the queue is full remove a line
+  if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
+    removeLine();
+  } 
+  
+  //grab the oldVal and add a line to the graph
+  uint32_t oldYVal = peekEndQueue(graphDisplay);
+  addLine(oldYVal, yVal);
+  
+  //add the YVal to the queue and data to the sd output
+  addQueue(graphDisplay, yVal);
+  sdOutput[sdIndex] = dataPoint;
+  sdIndex++;  
+
+  //qrs detect
+  uint32_t slope = averageSlope(10);
+  if (slope > 9000 && time - qrsDetected > 200) {
+
+    hasBPM = true;
+    addQueue(qrs, time);
+    qrsDetected = time;
+
+    //draw the debugging line
+    tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
+    tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
+    oldXpos = xPos;    
+  }
+}
+
+void hasBPMAction() {
+  uint16_t bpm = getBPM();
+  tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
+  tft.setTextColor(BOTTOM_TEXT_COLOR);
+  tft.setTextSize(2);
+  tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); tft.print(bpm);
+  tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, HEART_BEAT_COLOR);
+  hasBPM = false;
+  clearRed = true;
+}
+
+void clearRedAction() {
+  tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
+  clearRed = false;
+}
+
+uint32_t getBPM() {
+ int bpmIndex = qrs->endPoint;
+ double diff = 0.0;
+ 
+ for (int i = 0; i < qrs->max_length - 1; i++) {
+
+    diff += qrs->vals[(bpmIndex + i + 1) % qrs->max_length] - qrs->vals[(bpmIndex + i) % qrs->max_length];
+ }
+ diff = diff / (qrs->max_length - 1);
+ diff = 60000 / diff;
+ return diff;
+} 
+
+//---------------------- Grid Drawing Util -------------------------------
+void redrawHorLines(int x1, int y1, int x2, int y2) {
+  int minY = min(y1, y2) - 1;
+  int maxY = max(y1, y2) + 1;
+  int startingLine = minY / grid_delta;
+  int finishingLine = maxY / grid_delta + 1;
+  for(int i = startingLine ; i <= finishingLine; i++) {
+    if(i * grid_delta <= maxY && i * grid_delta >= minY) {
+      tft.drawLine(x1, i * grid_delta, x2, i * grid_delta,  GRAPH_GRID_LINES);
+    }
+  }
+}
+
+
+
+void redrawVertLines(int x1, int y1, int x2, int y2) {
+  int minY = min(y1, y2);
+  int maxY = max(y1, y2);
+  int startingLine = x1 / grid_delta;
+  int finishingLine = x2 / grid_delta + 1;
+  for(int i = startingLine; i <= finishingLine; i++) {
+    if(i * grid_delta <= x2 && i * grid_delta >= x1) {
+      tft.drawLine(i * grid_delta, minY - 1, i * grid_delta, maxY + 1, GRAPH_GRID_LINES);
+    }
+  }
+}
+
+
 
 
 
