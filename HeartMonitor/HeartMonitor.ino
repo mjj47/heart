@@ -25,6 +25,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define BOTTOM_BOX_COLOR ILI9341_BLACK
 #define BOTTOM_TEXT_COLOR ILI9341_WHITE
 #define HEART_BEAT_COLOR ILI9341_RED
+#define ROUND_RECT_COLOR ILI9341_RED
 
 #define NZEROS 8
 #define NPOLES 8
@@ -94,6 +95,12 @@ const uint8_t RECORD_TIME = 30;
 uint32_t sdOutput[HERTZ * RECORD_TIME];
 uint32_t sdIndex = 0;
 uint16_t sampleNumber = 0;
+
+//menu state vars
+int menuChoose = 0;
+
+//recall state vars
+int sdRecallIndex = 0;
 
 
 //-------------------------------------------------------------------------------------
@@ -168,34 +175,27 @@ void* initQueue(uint32_t queueLength) {
 
 int16_t fileNameIndex = 0;
 char* fileNames[100];
+uint16_t maxFileIndex = 0;
 
 void readFileNames() {
-  bool toMalloc = (fileNames[0] == NULL);
   int i;
   for(i = 0; file.openNext(sd.vwd(), O_READ); i++) {
     char* name = file.name();
     if (name[0] != 'D' || name[1] != 'A' || name[2] != 'T' || name[3] != 'A') {
       file.close();
-      i--;
       continue;
     }
-    if (toMalloc) {
-      fileNames[i] = (char*) malloc(sizeof(char) * 11);
-      fileNames[i][10] = '\0';
-    }
     for (int j = 0; j < 10; j++) {
-      fileNames[i][j] = name[j];
+      fileNames[maxFileIndex][j] = name[j];
     }
-    
+    maxFileIndex++;
     file.close();
   }
-
-  fileNames[i] = NULL;
 }
 
 
 void moveNextFile() {
-  if (fileNames[fileNameIndex + 1] != NULL){
+  if (fileNameIndex + 1 != maxFileIndex){
     fileNameIndex++;
   }
 }
@@ -219,7 +219,6 @@ void setFileName(uint16_t index) {
 }
 
 void readFile() {
-  Serial.println(file.available());
   char* name = (char *) getCurrentFile(); 
   fileName[4] = name[4];
   fileName[5] = name[5]; 
@@ -227,8 +226,9 @@ void readFile() {
   uint32_t val = 0;
   uint32_t indexInFile = 0;
   sdIndex = 0;
-  char c;
+  int c;
   while ((c = file.read()) >= 0) {
+    Serial.println(c);
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
     } else if ((indexInFile > 12 && c == ',') ||(indexInFile > 12 && c == '\n' )) {
@@ -240,6 +240,7 @@ void readFile() {
   }
   sdOutput[sdIndex] = val;
   sdIndex++;
+  Serial.println(sdIndex);
   file.close();
   
 
@@ -311,7 +312,10 @@ void setup() {
     Serial.println("Can't write to SD card");
   } else {
     Serial.println("SD card set up");
-    fileNames[0] = NULL;
+    for (int i = 0; i < 100; i++) {
+      fileNames[i] = (char*) malloc(sizeof(char) * 11);
+      fileNames[i][10] = '\0';
+    }
   }
   
   adcInit();
@@ -329,10 +333,18 @@ void initMenuState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("EKG Monitor");
+  tft.setCursor(65, 10); tft.print("EKG Monitor");
   tft.setTextSize(2);
   tft.setTextColor(MENU_TEXT);
-  tft.setCursor(30, 80); tft.print("Begin reading");  
+
+  tft.setCursor(80, 100); tft.print("Start Reading"); 
+  tft.setCursor(95, 165); tft.print("Recall Data");  
+
+  if(menuChoose == 0) {
+    tft.drawRoundRect(60, 83, 200, 50, 10,  ROUND_RECT_COLOR);
+  } else {
+    tft.drawRoundRect(60, 148, 200, 50, 10,  ROUND_RECT_COLOR); 
+  }
 }
 
 //---------------- Init File Choose State --------------------
@@ -344,17 +356,15 @@ void initFileChooseState() {
   tft.setCursor(45, 10); tft.print("File Choose State");
   readFileNames();    
   char * name = (char *) getCurrentFile();
-  Serial.println(name);
   tft.setCursor(30,80); tft.print(name);
 }
 
 //------------------ Init Recall State --------------------------
 
 void initRecallState() {
-  tft.fillScreen(MENU_BACKGROUND);
-  tft.setTextColor(MENU_HEADER);
-  tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("Recall State");
+  sdRecallIndex = 0;
+  readFile();
+  drawGraphSection();
 }
 
 //------------------- Init Read State ------------------------
@@ -609,23 +619,38 @@ void loop() {
 
   //-------------------------- Menu State Actions ---------------------------------
   if(menuState) {
+    //select event
+
     if(selectEvent) {
       //determine what text is picked
-      //choose between readState and fileChooseState
-      toReadState = true;
+      if(menuChoose == 0) {
+        toReadState = true;
+      } else {
+        toFileChooseState = true;
+      }     
     }
-    if(downEvent) {
-      //move selector down
-    }
-    if(upEvent) {
-      //move selector up
+
+    //down or up event
+    if(downEvent || upEvent) {
+      if(menuChoose == 0 && downEvent) {
+        menuChoose = 1;
+      }
+      if(menuChoose == 1 && upEvent) {
+        menuChoose = 0;
+      }
+      if(menuChoose == 0) {
+        tft.drawRoundRect(60, 83, 200, 50, 10,  ROUND_RECT_COLOR);
+        tft.drawRoundRect(60, 148, 200, 50, 10,  MENU_BACKGROUND); 
+      } else {
+        tft.drawRoundRect(60, 83, 200, 50, 10,  MENU_BACKGROUND);
+        tft.drawRoundRect(60, 148, 200, 50, 10,  ROUND_RECT_COLOR); 
+      }
     }
   }
 
   //-------------------------- File Choose State Actions -------------------------------
   if(fileChooseState) {
     if(selectEvent) {
-      readFile();
       toRecallState = true;
     } else if (downEvent) {
       tft.fillRect(0,80,tft.width(), 30, MENU_BACKGROUND);
@@ -669,7 +694,15 @@ void loop() {
     if(selectEvent) {
       toMenuState = true;
     } 
-
+    if(upEvent || downEvent) {
+      if(upEvent) {
+        sdRecallIndex = min(HERTZ * RECORD_TIME - DISPLAY_QUEUE_LENGTH, sdRecallIndex +  DISPLAY_QUEUE_LENGTH / 3);
+      }
+      if(downEvent) {
+        sdRecallIndex = max(0, sdRecallIndex - DISPLAY_QUEUE_LENGTH / 3);
+      }
+      drawGraphSection();
+    }
   }
 
 
@@ -715,10 +748,10 @@ void loop() {
     initRecallState();
   }
 
-  //clear Select Events
+  //clear the selection events
+  upEvent = false;
   downEvent = false;
   selectEvent = false;
-  upEvent = false;
 }
 
 
@@ -849,6 +882,23 @@ void redrawVertLines(int x1, int y1, int x2, int y2) {
     if(i * grid_delta <= x2 && i * grid_delta >= x1) {
       tft.drawLine(i * grid_delta, minY - 1, i * grid_delta, maxY + 1, GRAPH_GRID_LINES);
     }
+  }
+}
+
+//Used when recalling data from sd card
+void drawGraphSection() {
+  tft.fillScreen(GRAPH_BACKGROUND);
+  initVertLines();
+  initHorLines();
+  uint32_t tempXpos = 0;
+  uint32_t oldyVal = tft.height() - tft.height() *  sdOutput[sdRecallIndex] / 4095;
+  for(int i = sdRecallIndex + 1; i < sdRecallIndex + DISPLAY_QUEUE_LENGTH; i++) {
+    uint32_t yVal = tft.height() - tft.height() *  sdOutput[i] / 4095;
+    tft.drawLine(tempXpos, oldyVal, tempXpos + lineDelta, yVal, GRAPH_LINE);
+    tft.drawLine(tempXpos, oldyVal - 1, tempXpos + lineDelta, yVal - 1, GRAPH_LINE);
+    tft.drawLine(tempXpos, oldyVal + 1, tempXpos + lineDelta, yVal + 1, GRAPH_LINE);
+    oldyVal = yVal;
+    tempXpos += lineDelta;
   }
 }
 
