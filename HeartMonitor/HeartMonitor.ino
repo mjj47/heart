@@ -25,6 +25,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define BOTTOM_BOX_COLOR ILI9341_BLACK
 #define BOTTOM_TEXT_COLOR ILI9341_WHITE
 #define HEART_BEAT_COLOR ILI9341_RED
+#define ROUND_RECT_COLOR ILI9341_RED
 
 #define NZEROS 8
 #define NPOLES 8
@@ -94,6 +95,9 @@ const uint8_t RECORD_TIME = 30;
 uint32_t sdOutput[HERTZ * RECORD_TIME];
 uint32_t sdIndex = 0;
 uint16_t sampleNumber = 0;
+
+//menu state vars
+int menuChoose = 0;
 
 
 //-------------------------------------------------------------------------------------
@@ -261,6 +265,7 @@ void setup() {
   
   NVIC_ENABLE_IRQ(IRQ_PDB);
   initMenuState();
+  menuState = true;
 }
 
 //---------------- Init Menu State  ---------------------------
@@ -269,10 +274,18 @@ void initMenuState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
-  tft.setCursor(45, 10); tft.print("EKG Monitor");
+  tft.setCursor(65, 10); tft.print("EKG Monitor");
   tft.setTextSize(2);
   tft.setTextColor(MENU_TEXT);
-  tft.setCursor(30, 80); tft.print("Begin reading");  
+
+  tft.setCursor(80, 100); tft.print("Start Reading"); 
+  tft.setCursor(95, 165); tft.print("Recall Data");  
+
+  if(menuChoose == 0) {
+    tft.drawRoundRect(60, 83, 200, 50, 10,  ROUND_RECT_COLOR);
+  } else {
+    tft.drawRoundRect(60, 148, 200, 50, 10,  ROUND_RECT_COLOR); 
+  }
 }
 
 //---------------- Init File Choose State --------------------
@@ -524,6 +537,7 @@ void loop() {
   //check if the down button was pressed
   sensorVal = digitalRead(0);
   if (prevDown != sensorVal && sensorVal == LOW) {
+    Serial.println("here1");
     downEvent = true;
   }
   prevDown = sensorVal;
@@ -544,16 +558,32 @@ void loop() {
 
   //-------------------------- Menu State Actions ---------------------------------
   if(menuState) {
+    //select event
+
     if(selectEvent) {
       //determine what text is picked
-      //choose between readState and fileChooseState
-      toReadState = true;
+      if(menuChoose == 0) {
+        toReadState = true;
+      } else {
+        toFileChooseState = true;
+      }     
     }
-    if(downEvent) {
-      //move selector down
-    }
-    if(upEvent) {
-      //move selector up
+
+    //down or up event
+    if(downEvent || upEvent) {
+      if(menuChoose == 0 && downEvent) {
+        menuChoose = 1;
+      }
+      if(menuChoose == 1 && upEvent) {
+        menuChoose = 0;
+      }
+      if(menuChoose == 0) {
+        tft.drawRoundRect(60, 83, 200, 50, 10,  ROUND_RECT_COLOR);
+        tft.drawRoundRect(60, 148, 200, 50, 10,  MENU_BACKGROUND); 
+      } else {
+        tft.drawRoundRect(60, 83, 200, 50, 10,  MENU_BACKGROUND);
+        tft.drawRoundRect(60, 148, 200, 50, 10,  ROUND_RECT_COLOR); 
+      }
     }
   }
 
@@ -633,10 +663,15 @@ void loop() {
 
   if(toRecallState) {
     recallSate = true;
-    toRecallState = true;
+    toRecallState = false;
     fileChooseState = false;
     initRecallState();
   }
+
+  //clear the selection events
+  upEvent = false;
+  downEvent = false;
+  selectEvent = false;
 }
 
 
