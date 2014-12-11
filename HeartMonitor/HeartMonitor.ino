@@ -427,13 +427,15 @@ void redrawHorLines(int x1, int y1, int x2, int y2) {
 }
 
 uint32_t getBPM() {
- int bpmIndex = qrsTimes->startPoint;
- uint32_t diff = 0.0;
- for (int i = 0; i < qrsTimes->max_length - 1; i++) {
-    diff += qrsTimes->vals[(bpmIndex + i + 1) % qrsTimes->max_length] - qrsTimes->vals[(bpmIndex + i) % qrsTimes->max_length];
+ int bpmIndex = qrs->endPoint;
+ double diff = 0.0;
+ 
+ for (int i = 0; i < qrs->max_length - 1; i++) {
+
+    diff += qrs->vals[(bpmIndex + i + 1) % qrs->max_length] - qrs->vals[(bpmIndex + i) % qrs->max_length];
  }
- diff = diff / (qrsTimes->max_length - 1);
- Serial.println(diff);
+ diff = diff / (qrs->max_length - 1);
+ diff = 60000 / diff;
  return diff;
  
 } 
@@ -550,7 +552,7 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    if (slope > 10000 && time - beatDetected > 100) {
+    if (slope > 10000 && time - beatDetected > 200) {
       hasBPM = true;
       addQueue(qrs, time);
       beatDetected = time;
