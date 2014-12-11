@@ -899,6 +899,11 @@ void hasDataAction(uint32_t time) {
   //qrs detect
   uint32_t slope = averageSlope(10);
   if (slope > 9000 && time - qrsDetected > 200) {
+    for (int ii = 0; ii < 40; ii++) {
+      Serial.print(sdOutput[sdIndex - 1 - ii]);
+      Serial.print(", ");
+    }
+    Serial.println();
 
     hasBPM = true;
     addQueue(qrs, time);
@@ -1002,6 +1007,30 @@ void drawGraphSection(uint32_t oldIndex, uint32_t newIndex) {
     tempXpos += lineDelta;
   }
 }
+
+const uint8_t thresh = 3;
+
+uint32_t findMinIndexFromPeak(uint32_t peakIndex, bool lookRight) { 
+  peakIndex = sdIndex - peakIndex;
+  int delta = lookRight ? 1 : -1;
+  int i = 0;
+  while(true) {
+    bool found = true;
+    uint32_t prev = peakIndex + i * delta
+    for (int j = 0; j < thresh; j++) {
+      if (sdOutput[prev + delta] < sdOutput[prev]) {
+        found = false;
+      }
+      prev = prev + delta;
+    }
+    if (found) {
+      return i;
+    }
+
+    i++;
+  }
+}
+
 
 
 
