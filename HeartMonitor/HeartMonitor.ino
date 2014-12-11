@@ -129,7 +129,10 @@ void resetQueue(void* t) {
 
 void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
+  if(!ret) Serial.println("BaddStruct");
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
+  if(!ret->vals) Serial.println("BaddArray");
+
   ret->max_length = queueLength;
   return ret;
 }
@@ -214,15 +217,14 @@ void setup() {
   pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
 
+
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
-  qrsTimes = (Queue *) initQueue(QRS_BPM_LENGTH);
 
   
 
   
   Serial.begin(9600);
-  //while (!Serial);
   
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
@@ -245,7 +247,7 @@ void setup() {
 void initReadingDataState(uint32_t time) {
     tft.fillScreen(GRAPH_BACKGROUND);
     tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, BOTTOM_BOX_COLOR);   
-    tft.setCursor(tft.width() / 2 - 80, tft.height() / 2);
+    tft.fillRect(0, bottom_box_y, tft.width(), tft.height() - bottom_box_y);
     tft.setTextColor(CALIBRATING);
     tft.setTextSize(2);
     tft.print("Callibrating....");
@@ -428,13 +430,13 @@ void redrawHorLines(int x1, int y1, int x2, int y2) {
 
 uint32_t getBPM() {
  int bpmIndex = qrsTimes->startPoint;
- uint32_t diff = 0.0;
+ double diff = 0.0;
  for (int i = 0; i < qrsTimes->max_length - 1; i++) {
     diff += qrsTimes->vals[(bpmIndex + i + 1) % qrsTimes->max_length] - qrsTimes->vals[(bpmIndex + i) % qrsTimes->max_length];
  }
  diff = diff / (qrsTimes->max_length - 1);
- Serial.println(diff);
- return diff;
+ diff = 60000 / diff;
+ return (uint32_t) diff;
  
 } 
 
@@ -533,6 +535,7 @@ if (hasData && reading_state) {
     float dataPoint = transform(adcData);
     hasData = false;    
     uint32_t yVal = min(tft.height() - tft.height() *  dataPoint / 4095, bottom_box_y - 1) ;
+
     
     //if the queue is full remove a line
     if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
@@ -550,20 +553,20 @@ if (hasData && reading_state) {
 
     //qrs detect
     uint32_t slope = averageSlope(10);
-    if (slope > 14000 && time - beatDetected > 100) {
+    if (slope > 10000 && time - beatDetected > 200) {
       hasBPM = true;
       addQueue(qrs, time);
       beatDetected = time;
       tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
       tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
       oldXpos = xPos;
-      tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, GRAPH_LINE);       
     }
   }
   if(hasBPM) {
     uint16_t bpm = getBPM();
     tft.setTextColor(BOTTOM_TEXT_COLOR);
     tft.setTextSize(1);
+    tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y);
     tft.setCursor(0, tft.height() - 25); tft.print(bpm);
   }
 }
