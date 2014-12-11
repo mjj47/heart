@@ -166,12 +166,50 @@ void* initQueue(uint32_t queueLength) {
 //-------------------------------------- File Methods ---------------------------------
 //-------------------------------------------------------------------------------------
 
-void getAllFiles() {
-  while (file.openNext(sd.vwd(), O_READ)) {
-    Serial.println(file.name());
+int16_t fileNameIndex = 0;
+char* fileNames[100];
+
+void readFileNames() {
+  bool toMalloc = (fileNames[0] == NULL);
+  int i;
+  for(i = 0; file.openNext(sd.vwd(), O_READ); i++) {
+    char* name = file.name();
+    if (name[0] != 'D' || name[1] != 'A' || name[2] != 'T' || name[3] != 'A') {
+      file.close();
+      i--;
+      continue;
+    }
+    if (toMalloc) {
+      fileNames[i] = (char*) malloc(sizeof(char) * 11);
+      fileNames[i][10] = '\0';
+    }
+    for (int j = 0; j < 10; j++) {
+      fileNames[i][j] = name[j];
+    }
+    
     file.close();
   }
+
+  fileNames[i] = NULL;
 }
+
+
+void moveNextFile() {
+  if (fileNames[fileNameIndex + 1] != NULL){
+    fileNameIndex++;
+  }
+}
+
+void movePrevFile() {
+  if (fileNameIndex != 0) {
+    fileNameIndex--;
+  }
+}
+
+char * getCurrentFile() {
+  return fileNames[fileNameIndex];
+}
+
 
 void setFileName(uint16_t index) {
   int nums = 4;
@@ -180,17 +218,16 @@ void setFileName(uint16_t index) {
   fileName[nums + 1] = '0' + (index % 10);
 }
 
-void readFile(uint16_t index) {
-  setFileName(index);
-  Serial.print("Avail: ");
+void readFile() {
   Serial.println(file.available());
-  Serial.println("Trogdor");
-  int c;
-  
+  char* name = (char *) getCurrentFile(); 
+  fileName[4] = name[4];
+  fileName[5] = name[5]; 
   file.open(fileName);
   uint32_t val = 0;
   uint32_t indexInFile = 0;
   sdIndex = 0;
+  char c;
   while ((c = file.read()) >= 0) {
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
@@ -199,13 +236,10 @@ void readFile(uint16_t index) {
       val = 0;
       sdIndex++;
     }
-    Serial.println(val);
     indexInFile++;;  
   }
   sdOutput[sdIndex] = val;
   sdIndex++;
-  
-  Serial.println("DONE!!");
   file.close();
   
 
@@ -277,6 +311,7 @@ void setup() {
     Serial.println("Can't write to SD card");
   } else {
     Serial.println("SD card set up");
+    fileNames[0] = NULL;
   }
   
   adcInit();
@@ -286,6 +321,7 @@ void setup() {
   initMenuState();
   menuState = true;
 }
+
 
 //---------------- Init Menu State  ---------------------------
 
@@ -306,9 +342,14 @@ void initFileChooseState() {
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
   tft.setCursor(45, 10); tft.print("File Choose State");
+  readFileNames();    
+  char * name = (char *) getCurrentFile();
+  Serial.println(name);
+  tft.setCursor(30,80); tft.print(name);
 }
 
 //------------------ Init Recall State --------------------------
+
 void initRecallState() {
   tft.fillScreen(MENU_BACKGROUND);
   tft.setTextColor(MENU_HEADER);
@@ -584,7 +625,18 @@ void loop() {
   //-------------------------- File Choose State Actions -------------------------------
   if(fileChooseState) {
     if(selectEvent) {
+      readFile();
       toRecallState = true;
+    } else if (downEvent) {
+      tft.fillRect(0,80,tft.width(), 30, MENU_BACKGROUND);
+      moveNextFile();
+      char * name = getCurrentFile();
+      tft.setCursor(30,80); tft.print(name);
+    } else if (upEvent) {
+      tft.fillRect(0,80,tft.width(), 30, MENU_BACKGROUND);
+      movePrevFile();
+      char * name = getCurrentFile();
+      tft.setCursor(30,80); tft.print(name);
     }
   }
 
@@ -616,7 +668,8 @@ void loop() {
   if(recallSate) {
     if(selectEvent) {
       toMenuState = true;
-    }
+    } 
+
   }
 
 
@@ -657,7 +710,7 @@ void loop() {
 
   if(toRecallState) {
     recallSate = true;
-    toRecallState = true;
+    toRecallState = false;
     fileChooseState = false;
     initRecallState();
   }
