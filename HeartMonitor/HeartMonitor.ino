@@ -24,6 +24,7 @@ PDB triggers the ADC which requests the DMA to move the data to a buffer
 #define MENU_TEXT ILI9341_WHITE
 #define BOTTOM_BOX_COLOR ILI9341_BLACK
 #define BOTTOM_TEXT_COLOR ILI9341_WHITE
+#define HEART_BEAT_COLOR ILI9341_RED
 
 #define NZEROS 8
 #define NPOLES 8
@@ -67,6 +68,7 @@ volatile boolean to_munu_state;
 volatile int prev2;
 uint32_t beatDetected = 0;
 uint32_t oldXpos = 0;
+boolean clearRed = false;
 
 volatile boolean hasBPM;
 
@@ -559,15 +561,22 @@ if (hasData && reading_state) {
       beatDetected = time;
       tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
       tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
-      oldXpos = xPos;
-      tft.fillRect(0, bottom_box_y, tft.width(), bottom_box_y, GRAPH_LINE);       
+      oldXpos = xPos;    
     }
   }
   if(hasBPM && reading_state) {
     uint16_t bpm = getBPM();
+    tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
     tft.setTextColor(BOTTOM_TEXT_COLOR);
     tft.setTextSize(2);
     tft.setCursor(0, tft.height() - 25); tft.print("BPM: "); tft.print(bpm);
+    tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, HEART_BEAT_COLOR);
+    hasBPM = false;
+    clearRed = true;
+  }
+  if(time - beatDetected > 100 && clearRed) {
+    tft.fillRect(tft.width() / 2, bottom_box_y, tft.width(), tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
+    clearRed = false;
   }
 }
 
