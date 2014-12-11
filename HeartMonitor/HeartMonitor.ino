@@ -128,7 +128,10 @@ void resetQueue(void* t) {
 
 void* initQueue(uint32_t queueLength) {
   Queue* ret = (Queue*) malloc(sizeof(Queue));
+  if(!ret) Serial.println("BaddStruct");
   ret->vals = (uint32_t *) malloc(sizeof(uint32_t) * queueLength);
+  if(!ret->vals) Serial.println("BaddArray");
+
   ret->max_length = queueLength;
   return ret;
 }
@@ -213,15 +216,14 @@ void setup() {
   pinMode(1, INPUT_PULLUP);
   pinMode(0, INPUT_PULLUP);
 
+
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
-  qrsTimes = (Queue *) initQueue(QRS_BPM_LENGTH);
 
   
 
   
   Serial.begin(9600);
-  //while (!Serial);
   
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
@@ -425,13 +427,13 @@ void redrawHorLines(int x1, int y1, int x2, int y2) {
 
 uint32_t getBPM() {
  int bpmIndex = qrsTimes->startPoint;
- uint32_t diff = 0.0;
+ double diff = 0.0;
  for (int i = 0; i < qrsTimes->max_length - 1; i++) {
     diff += qrsTimes->vals[(bpmIndex + i + 1) % qrsTimes->max_length] - qrsTimes->vals[(bpmIndex + i) % qrsTimes->max_length];
  }
  diff = diff / (qrsTimes->max_length - 1);
- Serial.println(diff);
- return diff;
+ diff = 60000 / diff;
+ return (uint32_t) diff;
  
 } 
 
@@ -529,7 +531,7 @@ void loop() {
 if (hasData && reading_state) {
     float dataPoint = transform(adcData);
     hasData = false;    
-    uint32_t yVal = tft.height() *  dataPoint / 4095;
+    uint32_t yVal = tft.height() - tft.height() *  dataPoint / 4095;
     
     //if the queue is full remove a line
     if (graphDisplay->queueSize == DISPLAY_QUEUE_LENGTH) {
@@ -549,15 +551,12 @@ if (hasData && reading_state) {
     uint32_t slope = averageSlope(10);
     if (slope > 14000 && time - beatDetected > 100) {
       hasBPM = true;
-      addQueue(qrsTimes, time);
+      addQueue(qrs, time);
       beatDetected = time;
       tft.drawLine(oldXpos, 0, oldXpos, 10, GRAPH_BACKGROUND);
       tft.drawLine(xPos, 0, xPos, 10, GRAPH_LINE);
-      oldXpos = xPos;
-      //addQueue(qrs, time);
-      
+      oldXpos = xPos;      
     }
-    //addQueue(qrs, slope);
   }   
 }
 
