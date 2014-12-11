@@ -102,6 +102,10 @@ int menuChoose = 0;
 //recall state vars
 int sdRecallIndex = 0;
 
+// Running total of BPM for a trial
+uint32_t bpmSum = 0;
+uint16_t numBPMs = 0;
+
 
 //-------------------------------------------------------------------------------------
 //----------------------------------- Queue Methods ------------------------------------
@@ -180,6 +184,7 @@ uint16_t maxFileIndex = 0;
 void readFileNames() {
   int i;
   maxFileIndex = 0;
+  fileNameIndex = 0;
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
     Serial.println("Can't write to SD card");
   }
@@ -232,7 +237,6 @@ void readFile() {
   sdIndex = 0;
   int c;
   while ((c = file.read()) >= 0) {
-    Serial.println(c);
     if (c >= '0' && c <= '9') {
       val = val * 10 + (uint32_t) (c - '0');
     } else if ((indexInFile > 12 && c == ',') ||(indexInFile > 12 && c == '\n' )) {
@@ -244,7 +248,6 @@ void readFile() {
   }
   sdOutput[sdIndex] = val;
   sdIndex++;
-  Serial.println(sdIndex);
   file.close();
   
 
@@ -266,7 +269,6 @@ void writeToSD() {
   setFileName(sampleNumber);
   sd.remove(fileName);
   openFile(sampleNumber);
-  Serial.println(sdIndex);
   file.print("RMMJ");
   if (sampleNumber < 10) {
     file.print("0");
@@ -302,7 +304,6 @@ void setup() {
   pinMode(HEART_INPUT, INPUT);
 
   Serial.begin(9600);
-  while (!Serial);
 
   graphDisplay = (Queue *) initQueue(DISPLAY_QUEUE_LENGTH);
   qrs = (Queue *) initQueue(QRS_QUEUE_LENGTH);
@@ -311,7 +312,6 @@ void setup() {
   grid_delta = tft.width() / num_vert_lines;
   lineDelta = tft.width() / (DISPLAY_QUEUE_LENGTH - 1);
   
-  Serial.println("woot");
   if (!sd.begin(chipSelect, SPI_HALF_SPEED)) {
     Serial.println("Can't write to SD card");
   } else {
@@ -437,6 +437,21 @@ void initReportState() {
   tft.setTextColor(MENU_HEADER);
   tft.setTextSize(3);
   tft.setCursor(45, 10); tft.print("Report State");
+  tft.setTextSize(2);
+  tft.setTextColor(MENU_TEXT);
+  tft.setCursor(10, 100);
+  uint16_t bpmAv = bpmSum / numBPMs;
+  tft.print("Average BPM: ");
+  tft.print(bpmAv);
+
+  int delta = 30;
+  int startYPos = 130;
+  tft.setCursor(10, startYPos); tft.print("Bradycardia: ");
+  tft.setCursor(10, startYPos + delta); tft.print("Tachycardia: ");
+  tft.setCursor(10, startYPos + 2 * delta); tft.print("        PVC: ");
+  tft.setCursor(10, startYPos + 3 * delta); tft.print("        PAC: ");
+  bpmSum = 0;
+  numBPMs = 0;
 }
 
 
@@ -860,8 +875,11 @@ void hasDataAction(uint32_t time) {
   }
 }
 
+
 void hasBPMAction() {
   uint16_t bpm = getBPM();
+  bpmSum += bpm;
+  numBPMs++;
   tft.fillRect(0, bottom_box_y, tft.width() / 2, tft.height() - bottom_box_y, BOTTOM_BOX_COLOR);
   tft.setTextColor(BOTTOM_TEXT_COLOR);
   tft.setTextSize(2);
